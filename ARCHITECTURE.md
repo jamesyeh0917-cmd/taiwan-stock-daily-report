@@ -61,6 +61,9 @@
 | `scripts/trading_day.py` | full / light / skip 決策 |
 | `scripts/price_in.py` | 事件研究：催化劑是否已反映 |
 | `scripts/backtest.py` | 過去呼叫 vs 前瞻報酬的命中率 |
+| `scripts/screen_universe.py` | 全市場粗篩（第一階段）→ 30 檔 shortlist |
+| `scripts/validate_report.py` | 產出後機械 QA（章節/機率/欄位/裸網址） |
+| `scripts/healthcheck.py` | 獨立健康檢查 + Discord 告警 |
 | `scripts/notify_discord.py` | Discord webhook 推播 |
 | `scripts/.env` | 本機密鑰（gitignore；雲端用環境變數） |
 | `scripts/state/latest.json` | 離線狀態備份（gitignore；主記憶在 Notion） |
@@ -88,12 +91,15 @@
 | Discord webhook | 推摘要與告警 | `DISCORD_WEBHOOK_URL` |
 | WebSearch / WebFetch | 台/中/日官方新聞稿、consensus、新聞脈絡 | Claude Code 內建 |
 
-### Routine
+### Routines（3 個，同一 repo，都自動繼承 Notion connector）
 
-- ID `trig_01CccU6EWREggXEy4ngGR6Uj`，<https://claude.ai/code/routines/trig_01CccU6EWREggXEy4ngGR6Uj>
-- cron `0 23 * * *`（UTC）= 每天 07:00 台北
-- model `claude-sonnet-5`，環境 `env_01TKmeeSre37E8NmmXh5PWVk`
-- prompt 內含 `FRED_API_KEY`、`DISCORD_WEBHOOK_URL`、指向 CLOUD.md
+| routine | ID | cron (UTC) | 台北時間 | 做什麼 |
+|---|---|---|---|---|
+| 台股每日研究報告 | `trig_01CccU6EWREggXEy4ngGR6Uj` | `0 23 * * *` | 每天 07:00 | 主流程,產報告 |
+| 台股研究報告健康檢查 | `trig_018NyTBHyQW7ByA5CgStqY7A` | `0 1 * * *` | 每天 09:00 | 驗證主流程有沒有成功,異常發 Discord |
+| 台股研究週報 | `trig_01MfvQBofrNLnwgzPcDLuS7s` | `0 11 * * 0` | 週日 19:00 | 彙整當週,追加週報頁 + 回測 |
+
+model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內含 `FRED_API_KEY`／`DISCORD_WEBHOOK_URL`。
 
 ---
 
