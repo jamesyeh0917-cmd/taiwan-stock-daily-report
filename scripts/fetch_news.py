@@ -35,10 +35,19 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
 CNYES = "https://news.cnyes.com/api/v3/news/category/{cat}?limit=30"
-CNYES_CATS = ["tw_stock", "headline", "wd_macro"]
+CNYES_CATS = ["tw_stock", "headline", "wd_macro", "tw_macro"]
 RSS_FEEDS = [
     ("經濟日報", "https://money.udn.com/rssfeed/news/1001/5591?ch=money"),
+    ("經濟日報-產業", "https://money.udn.com/rssfeed/news/1001/5590?ch=money"),
     ("中央社財經", "https://feeds.feedburner.com/rsscna/finance"),
+    ("工商時報", "https://ctee.com.tw/feed"),
+    ("Yahoo財經", "https://tw.stock.yahoo.com/rss?category=news"),
+]
+RELEVANCE = [
+    "台股", "加權", "上市", "上櫃", "半導體", "晶片", "台積電", "AI", "伺服器", "記憶體",
+    "封測", "散熱", "面板", "外資", "投信", "法人", "央行", "利率", "升息", "降息",
+    "Fed", "聯準會", "通膨", "CPI", "出口", "外銷訂單", "景氣", "GDP", "PMI",
+    "關稅", "匯率", "台幣", "新台幣", "美元", "原油", "殖利率", "財報", "營收", "法說",
 ]
 
 THEME_KW = {
@@ -72,10 +81,14 @@ def _ctx() -> ssl.SSLContext:
 _SSL = _ctx()
 
 
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+
+
 def _get(url: str, retries: int = 2) -> str:
     for i in range(retries + 1):
         try:
-            req = Request(url, headers={"User-Agent": "Mozilla/5.0 taiwan-stock-daily-report/2.1"})
+            req = Request(url, headers={"User-Agent": _UA, "Accept": "*/*"})
             with urlopen(req, timeout=25, context=_SSL) as r:
                 return r.read().decode("utf-8", "replace")
         except Exception:
@@ -83,6 +96,13 @@ def _get(url: str, retries: int = 2) -> str:
                 raise
             time.sleep(1.5)
     return ""
+
+
+def _relevant(it: dict) -> bool:
+    if it.get("tagged_stocks"):
+        return True
+    text = (it.get("title", "") or "") + (it.get("summary", "") or "")
+    return any(k in text for k in RELEVANCE)
 
 
 def _clean(s: str) -> str:
@@ -177,15 +197,20 @@ def build(hours: int) -> dict:
         seen.add(key)
         items.append(it)
 
+    relevant = [it for it in items if _relevant(it)]
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at": now.astimezone(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
         "window_hours": hours,
-        "count": len(items),
+        "count": len(relevant),
+        "count_raw": len(items),
+        "sources": sorted({it["source"] for it in items}),
         "errors": errors,
-        "theme_mentions": _tally(items, THEME_KW),
-        "macro_mentions": _tally(items, MACRO_KW),
-        "items": items,
+        "theme_mentions": _tally(relevant, THEME_KW),
+        "macro_mentions": _tally(relevant, MACRO_KW),
+        "items": relevant,
+        "items_other": [it for it in items if it not in relevant][:15],
         "note": "tier D discovery aid; open the primary document before citing as fact",
     }
 

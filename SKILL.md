@@ -67,7 +67,7 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
 10. 產生報告並 QA。
    - 讀取 [references/report-contract.md](references/report-contract.md)，依固定順序呈現，含「與前一份報告的變化」章節。
    - **每週一次**（週一或每月 1 日）另做回測校準：依 backtest-calibration.md 跑 `scripts/backtest.py`，寫報告 §13.7。
-   - 報告草稿寫成 Markdown 檔後，依 [references/qa-and-review.md](references/qa-and-review.md) 跑 `python scripts/validate_report.py --report <draft.md> --market <market.json> --macro <macro.json> --mode <full|light>`（含結構檢查 + 關鍵數字對快照交叉比對）；依 verdict 決定 `複核狀態` 與是否在 Discord 標「QA 未通過」。
+   - 報告草稿寫成 Markdown 檔後，依 [references/qa-and-review.md](references/qa-and-review.md) 跑 `python scripts/validate_report.py --report <draft.md> --market <market.json> --macro <macro.json> --fundamentals <fundamentals.json> --mode <full|light>`（結構檢查 + 逐數字對快照交叉比對，可抓 PER／月營收／日期寫錯或幻覺）；依 verdict 決定 `複核狀態` 與是否在 Discord 標「QA 未通過」。
 11. 交付。
     - 讀取 [references/output-delivery.md](references/output-delivery.md)。Notion 模式建當日頁（含 `複核狀態` 屬性、§15 的 QA JSON 與原始快照 toggle）+ 更新證據帳本／候選股／題材檔案三個子資料庫 + 回連前一份。
     - 依 [references/state-memory.md](references/state-memory.md) 更新狀態記錄。

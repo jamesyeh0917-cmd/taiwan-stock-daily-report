@@ -66,47 +66,91 @@ def _find_scenario_probs(md: str) -> list[float]:
     return probs
 
 
-def _key_figures(market: dict | None, macro: dict | None) -> list[tuple[str, float | None, float]]:
-    """(label, value, relative tolerance) triples the report should reflect."""
-    out: list[tuple[str, float | None, float]] = []
+_FRED_YOY = {"us_cpi": "美國 CPI", "us_core_cpi": "美國核心 CPI", "us_pce_core": "美國核心 PCE",
+             "euro_hicp": "歐元區 HICP"}
+_FRED_LEVEL = {"us_unemployment": "美國失業率", "us_fed_funds": "聯邦資金利率",
+               "ust_2y": "美國 2Y 殖利率", "ust_10y": "美國 10Y 殖利率",
+               "ust_10y_breakeven": "10Y 損益兩平通膨", "brent": "Brent 原油", "wti": "WTI 原油",
+               "twd_usd": "USD/TWD", "cny_usd": "CNY/USD", "jpy_usd": "JPY/USD"}
+
+
+def _snapshot_figures(market, macro, fundamentals) -> list[dict]:
+    """Every checkable figure: {names:[...aliases], value, tol, source}."""
+    figs: list[dict] = []
+
+    def add(names, value, tol, source):
+        if value is not None:
+            figs.append({"names": [n for n in names if n], "value": float(value), "tol": tol, "source": source})
+
     if market:
         for idx in market.get("indices", []):
-            if idx.get("name") == "發行量加權股價指數" and idx.get("close"):
-                out.append(("加權指數", round(idx["close"], 2), 0.002))
+            add([idx.get("name"), "加權指數" if "加權" in (idx.get("name") or "") else None,
+                 "台灣50" if "50" in (idx.get("name") or "") else None], idx.get("close"), 0.003, "指數")
         agg = market.get("market_aggregate_recent") or []
-        if agg and agg[-1].get("taiex_close"):
-            out.append(("加權指數收盤", round(agg[-1]["taiex_close"], 2), 0.002))
+        if agg:
+            add(["加權指數", "加權指數收盤", "TAIEX", "發行量加權"], agg[-1].get("taiex_close"), 0.003, "FMTQIK")
+        for m in market.get("watchlist", {}).get("matches", []):
+            code, name = m.get("code"), m.get("name")
+            add([f"{code} 收盤", f"{name} 收盤", f"{name}股價"], m.get("close"), 0.01, f"{code} 收盤")
+            v = m.get("valuation") or {}
+            add([f"{code} PER", f"{name} PER", f"{name} 本益比", f"{code} 本益比"], v.get("pe_ratio"), 0.06, f"{code} 當日PER")
+            add([f"{code} PBR", f"{name} PBR", f"{name} 股價淨值比"], v.get("pb_ratio"), 0.06, f"{code} PBR")
+
     if macro:
         for r in (macro.get("fred", {}) or {}).get("series", []):
             k = r.get("key")
-            if k == "twd_usd" and r.get("actual"):
-                out.append(("USD/TWD", round(r["actual"], 2), 0.01))
-            elif k == "ust_10y" and r.get("actual"):
-                out.append(("美國 10Y 公債殖利率", round(r["actual"], 2), 0.03))
-            elif k == "brent" and r.get("actual"):
-                out.append(("Brent 原油", round(r["actual"], 1), 0.03))
-            elif k == "us_cpi" and r.get("yoy_pct"):
-                out.append(("美國 CPI 年增", round(r["yoy_pct"], 1), 0.15))
-        t = macro.get("us_treasury") or {}
-        if t.get("curve_pct", {}).get("10y"):
-            out.append(("10Y 殖利率(財政部)", round(t["curve_pct"]["10y"], 2), 0.03))
+            if k in _FRED_YOY and r.get("yoy_pct") is not None:
+                add([_FRED_YOY[k], f"{_FRED_YOY[k]}年增", f"{_FRED_YOY[k]} YoY"], r["yoy_pct"], 0.12, f"FRED {k}")
+            if k in _FRED_LEVEL and r.get("actual") is not None:
+                add([_FRED_LEVEL[k]], r["actual"], 0.03, f"FRED {k}")
+        t = (macro.get("us_treasury") or {}).get("curve_pct") or {}
+        add(["美國 10Y 殖利率", "10Y 公債殖利率"], t.get("10y"), 0.03, "美財政部")
+        add(["美國 2Y 殖利率"], t.get("2y"), 0.03, "美財政部")
+
+    if fundamentals:
+        for code, d in (fundamentals.get("codes") or {}).items():
+            vh = d.get("valuation_history") or {}
+            add([f"{code} PER", f"{code} 本益比"], vh.get("per"), 0.05, f"{code} FinMind PER")
+            add([f"{code} PER 分位", f"{code} 本益比分位"], vh.get("per_1y_percentile"), 0.10, f"{code} PER分位")
+            mr = d.get("month_revenue") or {}
+            add([f"{code} 月營收", f"{code} 營收年增", f"{code} YoY"], mr.get("yoy_pct"), 0.15, f"{code} 月營收YoY")
+    return figs
+
+
+def _lines_mentioning(md: str, names: list[str]) -> list[str]:
+    hits = []
+    for line in md.splitlines():
+        if any(n and n in line for n in names):
+            hits.append(line)
+    return hits
+
+
+def _nums_in(text: str) -> list[float]:
+    out = []
+    for m in re.finditer(r"[-+]?\d[\d,]*\.?\d*", text):
+        try:
+            out.append(float(m.group(0).replace(",", "")))
+        except ValueError:
+            pass
     return out
 
 
-def _report_has_number_near(md: str, label: str, value: float, tol: float) -> bool:
-    """True if any number in the report is within tol of value (relative)."""
-    lo, hi = value * (1 - tol) - 0.01, value * (1 + tol) + 0.01
-    for m in re.finditer(r"[-+]?\d[\d,]*\.?\d*", md):
-        try:
-            n = float(m.group(0).replace(",", ""))
-        except ValueError:
-            continue
-        if lo <= n <= hi:
-            return True
-    return False
+def _figure_issue(md: str, fig: dict) -> str | None:
+    """If the report mentions this figure's name but no nearby number, warn."""
+    lines = _lines_mentioning(md, fig["names"])
+    if not lines:
+        return None  # not mentioned — fine, not every figure must appear
+    v, tol = fig["value"], fig["tol"]
+    lo, hi = v * (1 - tol) - abs(v) * 0.002 - 0.01, v * (1 + tol) + abs(v) * 0.002 + 0.01
+    for ln in lines:
+        for n in _nums_in(ln):
+            if lo <= n <= hi:
+                return None  # found a consistent number
+    return (f"「{fig['names'][0]}」在報告中被提及，但鄰近沒有與快照一致的數字"
+            f"（快照 {fig['source']} ≈ {round(v, 3)}）— 可能寫錯或幻覺")
 
 
-def check(md: str, market: dict | None, macro: dict | None, mode: str) -> dict:
+def check(md: str, market: dict | None, macro: dict | None, mode: str, fundamentals: dict | None = None) -> dict:
     issues: list[dict] = []
 
     def add(sev: str, msg: str) -> None:
@@ -169,12 +213,19 @@ def check(md: str, market: dict | None, macro: dict | None, mode: str) -> dict:
         if market.get("status") == "degraded" and "degraded" not in md and "降級" not in md and "部分" not in md:
             add("warn", "market snapshot status=degraded 但報告未反映")
 
-    # number cross-check: key figures the report states must trace to a snapshot
-    for label, value, tol in _key_figures(market, macro):
-        if value is None:
-            continue
-        if not _report_has_number_near(md, label, value, tol):
-            add("warn", f"報告未見與快照一致的「{label}」（快照值 ≈ {value}）；可能漏引或寫錯")
+    # number cross-check: every figure the report cites must trace to a snapshot
+    figs = _snapshot_figures(market, macro, fundamentals)
+    mismatches = [m for m in (_figure_issue(md, f) for f in figs) if m]
+    for msg in mismatches[:12]:
+        add("warn", msg)
+    if len(mismatches) > 12:
+        add("warn", f"另有 {len(mismatches) - 12} 個數字與快照對不上（略）")
+
+    # 資料基準日 consistency
+    if market and market.get("as_of_date"):
+        m = re.search(r"資料基準日[：:\s|]*([\d]{4}-[\d]{2}-[\d]{2})", md)
+        if m and m.group(1) != market["as_of_date"] and not market.get("freshness", {}).get("stale"):
+            add("warn", f"報告資料基準日 {m.group(1)} != 行情快照 as_of {market['as_of_date']}")
 
     # exec summary bullet count (full)
     if mode == "full":
@@ -202,6 +253,7 @@ def main() -> int:
     ap.add_argument("--report", required=True, help="path to the draft report markdown")
     ap.add_argument("--market", help="path to market.json (optional cross-check)")
     ap.add_argument("--macro", help="path to macro.json (optional cross-check)")
+    ap.add_argument("--fundamentals", help="path to fundamentals.json (optional cross-check)")
     ap.add_argument("--mode", choices=["full", "light"], default="full")
     ap.add_argument("--output", default="-")
     args = ap.parse_args()
@@ -218,7 +270,7 @@ def main() -> int:
                 return None
         return None
 
-    result = check(md, _load(args.market), _load(args.macro), args.mode)
+    result = check(md, _load(args.market), _load(args.macro), args.mode, _load(args.fundamentals))
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output == "-":
         print(text)
