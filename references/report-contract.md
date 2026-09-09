@@ -32,7 +32,7 @@
 - 顯示行情新鮮度：快照 `as_of_date`、`freshness.stale`、落後交易日數、TWSE／TPEx 是否同日。
 - 顯示工具降級：WebSearch／WebFetch／Python／Notion 任一不可用時逐項列出，以及對應章節受影響的範圍。
 - 顯示前一份報告：連結與其資料基準日；首次執行標「無前期基準」。
-- 自動排程且未經人工複核：明確標「自動產生‧未複核」。
+- 自動排程且未經人工複核：明確標「自動產生‧未複核」。顯示 `複核狀態`（待複核／已複核／有疑慮）與 QA verdict（pass／warn／fail）。
 - 若任何資料在 `analysis_as_of` 後才擷取，標示為事後擷取，並說明可證明的原始發布時間；無法證明時不得放入截止線報告。
 - 顯示預設投資期限：戰術期 `1–4 週`、策略期 `3–12 個月`。
 
@@ -228,6 +228,10 @@
 列出所有來源 URL、資料期、發布時間、擷取時間、原始列數、篩選後列數、錯誤、缺值與版本。若使用上傳檔案，列檔名與必要欄位，不虛構網址。
 
 行情快照另附：`schema_version`、`status`、`freshness`（含 `expected_last_trading_day`、各市場 `source_dates`、`stale`）、`errors` 清單。腳本抓取失敗的來源必須逐項出現在此。
+
+兩個 toggle：
+- **「QA 結果」**：`validate_report.py` 的完整 JSON verdict。
+- **「原始快照」**：market/macro/fundamentals 的關鍵欄位（非整包），供下次某來源失敗時當前一日後備值（見 qa-and-review.md 第四節）。
 
 ## 16. 結論與研究狀態
 

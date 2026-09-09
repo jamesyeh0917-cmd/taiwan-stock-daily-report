@@ -38,7 +38,8 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
    - 讀取 [references/data-sources.md](references/data-sources.md) 與 [references/sources.json](references/sources.json)。
    - **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist 2330,2317 --output <market.json>`
      讀 `freshness`：若 `stale` 為真或 `status=degraded`，依 research-method 新鮮度規則處理。每檔 watchlist 附 `signals`（5/20/60 日動能、相對大盤強弱、量能比、實現波動）。使用者提供 CSV／JSON／XLSX 時改 `--input <file>`。
-   - **個股基本面與籌碼面**：`python scripts/fetch_fundamentals.py --watchlist 2330,2317 --output <fundamentals.json>`（FinMind）。近一年 PER／PBR 分位、三大法人買賣超、融資融券、月營收 YoY／MoM、股利。缺值填 N/A。
+   - **全市場粗篩（第一階段）**：`python scripts/screen_universe.py --top 30 --core 2330,2317,2454,2382,2408,2344,3711,2308 --output <shortlist.json>` → 取得 30 檔輪動候選 + 核心清單。
+   - **個股基本面與籌碼面（第二階段）**：`python scripts/fetch_fundamentals.py --watchlist <shortlist 的 codes> --output <fundamentals.json>`（FinMind）。近一年 PER／PBR 分位、三大法人買賣超、融資融券、月營收 YoY／MoM、股利。缺值填 N/A。
    - **總經數據**：`python scripts/fetch_macro_snapshot.py --output <macro.json>`（FRED key 由 `scripts/.env` 或環境變數帶入）。讀 `macro_snapshot.json` 作為美國、殖利率、油價、Euro、匯率的一手來源。
    - **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 直抓官方新聞稿與經濟日曆，補齊腳本未涵蓋項。
    - 先用腳本與官方頁，媒體只補脈絡。事實與推論分開。
@@ -61,12 +62,12 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
 9. 更新題材檔案（累積型知識庫）。
    - 讀取 [references/theme-dossier.md](references/theme-dossier.md)。
    - 對每個 `WATCH` 以上題材：查 Notion「題材檔案」有無既有頁 → 有則內文追加當日小節（只寫變化）、無則建頁含傳導鏈與供應鏈對照。不重寫先前小節。
-10. 產生報告。
+10. 產生報告並 QA。
    - 讀取 [references/report-contract.md](references/report-contract.md)，依固定順序呈現，含「與前一份報告的變化」章節。
-   - 每個重要結論都附鄰近來源連結與資料日期；結尾列出不確定性、反證、後續驗證事件及研究用途聲明。
-   - **每週一次**（週一或每月 1 日）另做回測校準：依 backtest-calibration.md 從候選股追蹤 DB 匯出 65 日前的呼叫，跑 `scripts/backtest.py`，把 `calibration_notes` 寫成報告 §14.5。
+   - **每週一次**（週一或每月 1 日）另做回測校準：依 backtest-calibration.md 跑 `scripts/backtest.py`，寫報告 §13.7。
+   - 報告草稿寫成 Markdown 檔後，依 [references/qa-and-review.md](references/qa-and-review.md) 跑 `python scripts/validate_report.py --report <draft.md> --market <market.json> --mode <full|light>`；依 verdict 決定 `複核狀態` 與是否在 Discord 標「QA 未通過」。
 11. 交付。
-    - 讀取 [references/output-delivery.md](references/output-delivery.md)。Notion 模式建當日頁 + 更新證據帳本／候選股／題材檔案三個子資料庫 + 回連前一份。
+    - 讀取 [references/output-delivery.md](references/output-delivery.md)。Notion 模式建當日頁（含 `複核狀態` 屬性、§15 的 QA JSON 與原始快照 toggle）+ 更新證據帳本／候選股／題材檔案三個子資料庫 + 回連前一份。
     - 依 [references/state-memory.md](references/state-memory.md) 更新狀態記錄。
 
 ## 預設研究範圍

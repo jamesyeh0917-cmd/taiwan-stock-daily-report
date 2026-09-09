@@ -29,7 +29,8 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    `python scripts/fetch_macro_snapshot.py --output /tmp/macro.json`
 4. **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/market.json`
    多層備援（openapi → www.twse.com.tw/rwd → FinMind）＋重試。讀 `status` / `freshness` / `errors`。每檔 watchlist 附 `signals`。
-4b. **個股基本面／籌碼面**：`python scripts/fetch_fundamentals.py --watchlist 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/fundamentals.json`（FinMind，免金鑰）。
+4b. **全市場粗篩**：`python scripts/screen_universe.py --top 30 --core 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/shortlist.json`
+4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind，免金鑰）。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
 6b. **price-in**：對每個優先題材已發生的主要催化劑，跑
@@ -46,7 +47,12 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    | 候選股追蹤 | `collection://b9dee6fc-0ab8-4ee3-a48c-eac1ab8a22ff` |
    | 題材檔案 | `collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c` |
 
-8. 報告標題與開頭 callout 標「自動產生‧未複核」。
+7b. **產出 QA（交付前）**：把報告草稿寫成 `/tmp/draft.md`，跑
+   `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --mode <full|light>`。
+   依 [references/qa-and-review.md](references/qa-and-review.md)：`fail` → 仍交付但頁面加 callout、`複核狀態`=有疑慮、Discord 標「⚠️ QA 未通過」；`warn` → warnings 併進 §14；QA JSON 貼進 §15 toggle。
+7c. 把 market/macro/fundamentals 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
+
+8. 報告標題與開頭 callout 標「自動產生‧未複核」；報告 DB 設 `複核狀態`（排程一律 `待複核`，QA fail 則 `有疑慮`）。
 9. 全程非互動：不要問問題。不確定就依 skill 降級規則處理並在報告中記錄。
 
 ### 11. 推播 Discord 摘要（每種模式結束時都要做）
