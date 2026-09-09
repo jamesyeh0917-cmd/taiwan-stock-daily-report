@@ -29,10 +29,10 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 2. `cadence = daily`。時間基準見 [references/research-method.md](references/research-method.md)。
 3. **總經數據**：先 `export FRED_API_KEY`（金鑰由 routine prompt 提供），再
    `python scripts/fetch_macro_snapshot.py --output /tmp/macro.json`
-4. **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/market.json`
+4. **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist <config.watchlist_core> --history-days <config.history_days> --output /tmp/market.json`
    多層備援（openapi → www.twse.com.tw/rwd → FinMind）＋重試。讀 `status` / `freshness` / `errors`。每檔 watchlist 附 `signals`。
-4b. **全市場粗篩**：`python scripts/screen_universe.py --top 30 --core 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/shortlist.json`
-4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind，免金鑰）。
+4b. **全市場粗篩**：`python scripts/screen_universe.py --top <config.screen_top> --core <config.watchlist_core> --output /tmp/shortlist.json`
+4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind；有 `FINMIND_TOKEN` 環境變數則自動用，額度較高）。
 4d. **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output /tmp/news.json`（鉅亨網 + 經濟日報 + 中央社）。優先於 WebSearch。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
