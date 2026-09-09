@@ -46,13 +46,14 @@
    - schema：`指標`(title)、`區域`(select)、`資料期`(date)、`實際值`(number)、`前值`(number)、`YoY%`(number)、`預期值`(text)、`歷史位置`(text)、`發布時間`(date)、`來源`(url)、`證據層級`(select A/B/C/D)、`報告日`(date)、`判讀`(text)
    - 每個資料點一列，鍵為 `指標 + 資料期`；同一資料期重跑用 update 不新增。
    - 用途：跨月看 CPI／出口／殖利率的實際時間序列，不必翻舊報告。
-2. **候選股追蹤資料庫**（`候選股追蹤`）
-   - schema：`代號`(title)、`公司`(text)、`報告日`(date)、`題材`(multi_select)、`狀態`(select PRIORITY_RESEARCH/WATCH/ABSTAIN)、`淨分`(number)、`直接曝險`(text)、`估值`(text)、`PER近一年分位`(number)、`月營收YoY_%`(number)、`籌碼面`(text)、`量化訊號`(text)、`流動性窗口`(text)、`主要催化劑`(text)、`失效條件`(text)、`對比前次`(text)、`報告連結`(url)
-   - `PER近一年分位`／`月營收YoY_%` 從 fundamentals.json 帶入；`籌碼面`／`量化訊號` 各一句摘要。
+2. **候選股追蹤資料庫**（`候選股追蹤`，`collection://b9dee6fc-0ab8-4ee3-a48c-eac1ab8a22ff`）
+   - schema：`代號`(title)、`公司`、`報告日`、`題材`(multi_select)、`狀態`(select)、`淨分`(number)、`當日收盤價`(number)、`直接曝險`、`估值`、`PER近一年分位`(number)、`月營收YoY_%`(number)、`籌碼面`、`量化訊號`、`已被反映程度`、`流動性窗口`、`主要催化劑`、`失效條件`、`對比前次`、`報告連結`(url)
+   - `當日收盤價` 從 market.json 帶入（回測用進場價，務必填）。`PER近一年分位`／`月營收YoY_%`／`籌碼面`／`量化訊號` 從 fundamentals+signals 帶入。
    - 一檔一列一報告日；可篩 status、排序淨分、看單一標的估值分位與營收動能歷史。
-3. **題材檔案子頁面**：每個曾達 `PRIORITY_RESEARCH` 的題材一個常駐子頁（放在報告資料庫的父頁下，或獨立區塊）。每次報告在該頁**追加**一段日期小節：當日評分、傳導鏈更新、新證據、催化劑進度、風險變化。不重寫整頁。題材降為 ABSTAIN 後保留頁面並標「已淡出（日期＋原因）」。
+3. **題材檔案資料庫**（`題材檔案`，`collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c`）
+   - 依 [theme-dossier.md](theme-dossier.md)：每個 WATCH 以上題材一頁，內文每天**追加**日期小節，不重寫。
 
-建立子資料庫時父層用報告資料庫的父頁（與報告資料庫同層）。把三者的 URL／data_source id 寫進狀態記錄。
+三個子資料庫都在報告資料庫的父頁「Claude的台股財報分析資料庫」下。URL／data_source id 已固定（見上），寫進狀態記錄沿用。
 
 ## 三、Markdown 檔模式
 

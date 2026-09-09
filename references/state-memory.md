@@ -19,7 +19,10 @@ notion_page_url            前一份報告頁面
 notion_database_url        報告資料庫
 evidence_db                證據帳本子資料庫 {url, data_source_id}
 candidates_db              候選股追蹤子資料庫 {url, data_source_id}
-theme_pages                {題材名: 題材檔案子頁 url}
+theme_dossier_db           題材檔案子資料庫 {url, data_source_id}
+theme_pages                {題材名: 題材檔案頁 url}
+last_backtest_date         上次跑回測校準的日期
+backtest_evaluated_upto    回測已評估到的最大報告日（避免重複評估）
 taiwan_regime              前次對台灣景氣/通膨/金融條件的方向判斷
 global_regime              前次對全球成長/通膨/央行的方向判斷
 scenarios                  [{name, probability, key_drivers, invalidation}]

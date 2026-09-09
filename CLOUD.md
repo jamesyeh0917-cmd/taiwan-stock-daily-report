@@ -32,6 +32,11 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 4b. **個股基本面／籌碼面**：`python scripts/fetch_fundamentals.py --watchlist 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/fundamentals.json`（FinMind，免金鑰）。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
+6b. **price-in**：對每個優先題材已發生的主要催化劑，跑
+   `python scripts/price_in.py --code <代表股> --event-date <日期>`（見 references/backtest-calibration.md）。
+6c. **題材檔案**：依 [references/theme-dossier.md](references/theme-dossier.md)，對每個 WATCH 以上題材，在「題材檔案」資料庫查既有頁 → 追加當日小節或建新頁。
+6d. **回測校準（僅週一 / 每月 1 日）**：依 references/backtest-calibration.md，從候選股追蹤 DB 匯出 65 日前呼叫 → `python scripts/backtest.py --calls /tmp/calls.json` → 寫報告 §14.5。
+
 7. **交付**：依 [references/output-delivery.md](references/output-delivery.md)。目標：
 
    | 用途 | data source |
@@ -39,6 +44,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    | 報告資料庫「台股每日研究報告」 | `collection://12f5e0a1-2f79-4eb0-abbc-49c468c1cd3f` |
    | 證據帳本 | `collection://f4318726-ba81-41f8-ad7f-de908be1f8ba` |
    | 候選股追蹤 | `collection://b9dee6fc-0ab8-4ee3-a48c-eac1ab8a22ff` |
+   | 題材檔案 | `collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c` |
 
 8. 報告標題與開頭 callout 標「自動產生‧未複核」。
 9. 全程非互動：不要問問題。不確定就依 skill 降級規則處理並在報告中記錄。

@@ -55,15 +55,19 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
    - 對照前次情境，說明機率調整的原因與觸發事件。
 8. 形成題材與股票候選。
    - 讀取 [references/stock-screening.md](references/stock-screening.md)。
-   - 先評分題材，再評分個股；列出納入與排除理由。
-   - 流動性依 stock-screening 的兩段式規則：有 20 日歷史用中位成交金額，只有單日快照時用單日代理值並降低信心。
-   - 只輸出 `PRIORITY_RESEARCH`、`WATCH` 或 `ABSTAIN`。沒有經驗證策略時不得輸出 `BUY`。
-9. 產生報告。
+   - 先評分題材，再評分個股；估值用 `fundamentals.json` 的近一年 PER 分位，籌碼面用三大法人與融資券，市場驗證用 `signals`。
+   - 流動性依 stock-screening 的兩段式規則。只輸出 `PRIORITY_RESEARCH`、`WATCH` 或 `ABSTAIN`；沒有經驗證策略時不得輸出 `BUY`。
+   - **price-in 判斷**：對每個優先題材的已發生主要催化劑，跑 `python scripts/price_in.py --code <代表股> --event-date <日期>`，判斷市場反映程度（見 [references/backtest-calibration.md](references/backtest-calibration.md)）。
+9. 更新題材檔案（累積型知識庫）。
+   - 讀取 [references/theme-dossier.md](references/theme-dossier.md)。
+   - 對每個 `WATCH` 以上題材：查 Notion「題材檔案」有無既有頁 → 有則內文追加當日小節（只寫變化）、無則建頁含傳導鏈與供應鏈對照。不重寫先前小節。
+10. 產生報告。
    - 讀取 [references/report-contract.md](references/report-contract.md)，依固定順序呈現，含「與前一份報告的變化」章節。
    - 每個重要結論都附鄰近來源連結與資料日期；結尾列出不確定性、反證、後續驗證事件及研究用途聲明。
-10. 交付。
-    - 讀取 [references/output-delivery.md](references/output-delivery.md)。有 Notion 目標時建立當日頁面並回連前一份；否則輸出 Markdown 檔。
-    - 依 [references/state-memory.md](references/state-memory.md) 更新狀態記錄，供下次執行比較。
+   - **每週一次**（週一或每月 1 日）另做回測校準：依 backtest-calibration.md 從候選股追蹤 DB 匯出 65 日前的呼叫，跑 `scripts/backtest.py`，把 `calibration_notes` 寫成報告 §14.5。
+11. 交付。
+    - 讀取 [references/output-delivery.md](references/output-delivery.md)。Notion 模式建當日頁 + 更新證據帳本／候選股／題材檔案三個子資料庫 + 回連前一份。
+    - 依 [references/state-memory.md](references/state-memory.md) 更新狀態記錄。
 
 ## 預設研究範圍
 
