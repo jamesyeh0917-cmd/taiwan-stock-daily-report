@@ -14,9 +14,10 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
 | WebFetch | 直抓台／中／日官方新聞稿與經濟日曆 consensus（見 [references/macro-fetch.md](references/macro-fetch.md)） | 對應儀表板格標「本期未取得」，報告狀態降 `部分`，不得臆測 |
 | WebSearch | 補新聞脈絡、交叉查證、找官方新聞稿列表 | 只用 WebFetch 已知頁 + 腳本；未能查證的區塊明列 |
 | `FRED_API_KEY` | `scripts/fetch_macro_snapshot.py` 取美國 CPI／就業／殖利率、油價、Euro HICP、匯率 | 腳本自動降級（仍出財政部殖利率曲線）；缺口逐項改 WebFetch FRED 網頁，降信心 |
-| Python 3 | 執行兩支 `scripts/fetch_*_snapshot.py` | 改用使用者提供的 CSV／JSON／XLSX；否則台股行情與部分總經章節標為缺資料 |
+| Python 3 | 執行 `scripts/*.py`（行情、總經、交易日判斷、Discord 推播） | 改用使用者提供的 CSV／JSON／XLSX；否則台股行情與部分總經章節標為缺資料 |
 | `openpyxl` | 讀取 `.xlsx` | 請使用者改存 UTF-8 CSV |
 | Notion MCP（`notion-*` 工具） | 交付報告到 Notion（含證據帳本／候選股子資料庫） | 依 [references/output-delivery.md](references/output-delivery.md) 改輸出 Markdown 檔並提示使用者 |
+| `DISCORD_WEBHOOK_URL`（排程用） | `scripts/notify_discord.py` 推播摘要與失敗告警 | 無則靜默略過推播，不影響報告本身 |
 
 開始前先確認手上有哪些工具，缺哪一項就在報告「報告識別」欄註明對應的降級。
 

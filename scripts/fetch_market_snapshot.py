@@ -10,6 +10,11 @@ Beyond the raw TWSE/TPEx close, this build adds:
 * optional multi-session liquidity history for watchlist codes, so the
   20-trading-day turnover rule in references/stock-screening.md has data.
 
+Each TWSE source has a fallback chain: openapi.twse.com.tw mirror →
+www.twse.com.tw/rwd (the site's own endpoint) → FinMind (per-stock only),
+with retry + HTML-block-page detection, because the openapi mirror
+intermittently blocks cloud IP ranges with a "FOR SECURITY REASONS" page.
+
 Everything degrades gracefully: a failed source is recorded under "errors"
 and the rest of the snapshot is still emitted.
 """
@@ -18,15 +23,17 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import re
 import ssl
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from statistics import median
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from urllib.request import Request, urlopen
 
 try:
@@ -35,12 +42,23 @@ except ImportError:  # Python 3.8 fallback
     ZoneInfo = None  # type: ignore[assignment]
 
 
+# Primary = openapi.twse.com.tw mirror. It intermittently blocks some cloud
+# IP ranges with an HTML "FOR SECURITY REASONS" page, so every TWSE source
+# also has a www.twse.com.tw/rwd fallback (the site's own endpoint), and
+# per-stock history falls back to FinMind.
 TWSE_QUOTES_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
+TWSE_QUOTES_RWD = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=csv"
 TWSE_INDEX_URL = "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX"
+TWSE_INDEX_RWD = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&date={yyyymmdd}&type=IND"
 TWSE_MARKET_STATS_URL = "https://openapi.twse.com.tw/v1/exchangeReport/FMTQIK"
+TWSE_MARKET_STATS_RWD = "https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK?response=json&date={yyyymmdd}"
 TWSE_VALUATION_URL = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"
+TWSE_VALUATION_RWD = "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json&date={yyyymmdd}&selectType=ALL"
 TWSE_HOLIDAY_URL = "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"
+TWSE_HOLIDAY_RWD = "https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json&queryYear={roc}"
 TWSE_STOCK_DAY_URL = "https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&stockNo={code}&date={yyyymmdd}"
+TWSE_STOCK_DAY_RWD = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?response=json&stockNo={code}&date={yyyymmdd}"
+FINMIND_URL = "https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id={code}&start_date={start}"
 TPEX_QUOTES_URL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes"
 
 # Exchange-listed ETFs and similar products commonly use codes beginning with 0.
@@ -99,23 +117,72 @@ def _certifi_context() -> ssl.SSLContext | None:
 
 _SSL_CONTEXTS = [ctx for ctx in (_relaxed_context(), _certifi_context()) if ctx is not None]
 
+_BLOCK_MARKERS = ("SECURITY REASONS", "無法呈現", "Access Denied", "Just a moment")
 
-def _fetch_json(url: str) -> Any:
+
+class BlockedResponse(RuntimeError):
+    """The endpoint returned an HTML block / challenge page instead of data."""
+
+
+def _fetch_text(url: str, retries: int = 3) -> str:
     request = Request(
         url,
         headers={
-            "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (taiwan-stock-daily-report/2.0)",
+            "Accept": "application/json, text/csv, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) taiwan-stock-daily-report/2.1",
         },
     )
     last_error: Exception | None = None
-    for context in _SSL_CONTEXTS:
+    for attempt in range(retries):
+        for context in _SSL_CONTEXTS:
+            try:
+                with urlopen(request, timeout=30, context=context) as response:
+                    body = response.read().decode("utf-8-sig", "replace")
+                stripped = body.lstrip()
+                if stripped[:1] == "<" or any(m in body[:600] for m in _BLOCK_MARKERS):
+                    raise BlockedResponse(f"HTML block page from {url}")
+                return body
+            except ssl.SSLError as exc:
+                last_error = exc
+            except BlockedResponse as exc:
+                last_error = exc
+            except Exception as exc:  # transient network / 5xx
+                last_error = exc
+        if attempt < retries - 1:
+            time.sleep(1.5 * (attempt + 1))
+    raise last_error if last_error is not None else RuntimeError("fetch failed")
+
+
+def _fetch_json(url: str) -> Any:
+    return json.loads(_fetch_text(url))
+
+
+def _chain(specs: list[tuple[str, Callable[[str], list[dict[str, Any]]]]]) -> tuple[list[dict[str, Any]], list[str]]:
+    """Try each (url, parser) in order; return the first non-empty result.
+
+    parser receives the raw response text and returns rows in the openapi
+    dict shape so downstream normalizers are unchanged.
+    """
+    notes: list[str] = []
+    for url, parser in specs:
         try:
-            with urlopen(request, timeout=30, context=context) as response:
-                return json.loads(response.read().decode("utf-8-sig"))
-        except ssl.SSLError as exc:  # try the next trust configuration
-            last_error = exc
-    raise last_error if last_error is not None else RuntimeError("no SSL context available")
+            rows = parser(_fetch_text(url))
+            if rows:
+                if notes:
+                    notes.append(f"used fallback: {url}")
+                return rows, notes
+            notes.append(f"empty from {url}")
+        except Exception as exc:
+            notes.append(f"failed {url}: {exc}")
+    return [], notes
+
+
+def _roc_slash(now: datetime) -> str:
+    return str(now.year - 1911)
+
+
+def _strip_tags(value: Any) -> str:
+    return re.sub(r"<[^>]+>", "", str(value or "")).strip()
 
 
 def _number(value: Any) -> float | None:
@@ -447,6 +514,134 @@ def _twse_tabular_rows(payload: Any) -> list[dict[str, Any]]:
     return [dict(zip(fields, row)) for row in data if isinstance(row, list)]
 
 
+# --- fallback parsers: each returns rows in the openapi dict shape ---------
+
+def _p_quotes_openapi(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    return data if isinstance(data, list) else []
+
+
+def _p_quotes_rwd_csv(text: str) -> list[dict[str, Any]]:
+    rows = list(csv.DictReader(io.StringIO(text)))
+    out = []
+    for r in rows:
+        out.append({
+            "Date": r.get("日期"), "Code": (r.get("證券代號") or "").strip(), "Name": r.get("證券名稱"),
+            "TradeVolume": r.get("成交股數"), "TradeValue": r.get("成交金額"),
+            "OpeningPrice": r.get("開盤價"), "HighestPrice": r.get("最高價"),
+            "LowestPrice": r.get("最低價"), "ClosingPrice": r.get("收盤價"),
+            "Change": r.get("漲跌價差"), "Transaction": r.get("成交筆數"),
+        })
+    return [r for r in out if r["Code"]]
+
+
+def _p_indices_openapi(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    return data if isinstance(data, list) else []
+
+
+def _p_indices_rwd(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    out: list[dict[str, Any]] = []
+    for table in data.get("tables", []) if isinstance(data, dict) else []:
+        m = re.search(r"(\d{2,3})\D+(\d{1,2})\D+(\d{1,2})", str(table.get("title", "")))
+        iso = None
+        if m:
+            y = int(m.group(1))
+            y = y + 1911 if y < 1911 else y
+            iso = f"{y:04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        for row in table.get("data", []):
+            if not isinstance(row, list) or len(row) < 5:
+                continue
+            change_txt = _strip_tags(row[2])
+            pts = _strip_tags(row[3])
+            out.append({
+                "日期": iso, "指數": str(row[0]).strip(), "收盤指數": row[1],
+                "漲跌": "-" if ("green" in str(row[2]) or change_txt == "-") else "+",
+                "漲跌點數": pts, "漲跌百分比": _strip_tags(row[4]),
+            })
+    return out
+
+
+def _p_stats_openapi(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    return data if isinstance(data, list) else []
+
+
+def _p_stats_rwd(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    rows = _twse_tabular_rows(data) if isinstance(data, dict) else []
+    out = []
+    for r in rows:
+        out.append({
+            "Date": r.get("日期"), "TradeVolume": r.get("成交股數"),
+            "TradeValue": r.get("成交金額"), "Transaction": r.get("成交筆數"),
+            "TAIEX": r.get("發行量加權股價指數"), "Change": r.get("漲跌點數"),
+        })
+    return out
+
+
+def _p_valuation_openapi(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    return data if isinstance(data, list) else []
+
+
+def _make_p_valuation_rwd(iso_date: str | None) -> Callable[[str], list[dict[str, Any]]]:
+    def parse(text: str) -> list[dict[str, Any]]:
+        data = json.loads(text)
+        date_str = _iso_date(data.get("date")) if isinstance(data, dict) else None
+        rows = _twse_tabular_rows(data) if isinstance(data, dict) else []
+        out = []
+        for r in rows:
+            out.append({
+                "Date": date_str or iso_date,
+                "Code": str(r.get("證券代號") or "").strip(),
+                "Name": r.get("證券名稱"),
+                "PEratio": r.get("本益比"),
+                "DividendYield": r.get("殖利率(%)"),
+                "PBratio": r.get("股價淨值比"),
+            })
+        return [r for r in out if r["Code"]]
+    return parse
+
+
+def _p_holiday_openapi(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    return data if isinstance(data, list) else []
+
+
+def _p_holiday_rwd(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    rows = _twse_tabular_rows(data) if isinstance(data, dict) else []
+    return [{"Date": r.get("日期"), "Name": r.get("名稱"), "Description": r.get("說明")} for r in rows]
+
+
+def _recent_weekday_yyyymmdd(now: datetime) -> str:
+    d = now.date()
+    if now.hour < TWSE_CLOSE_HOUR + 1:
+        d -= timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.strftime("%Y%m%d")
+
+
+def _finmind_history(code: str, start: str) -> list[dict[str, Any]]:
+    text = _fetch_text(FINMIND_URL.format(code=code, start=start))
+    payload = json.loads(text)
+    rows = []
+    for r in payload.get("data", []) if isinstance(payload, dict) else []:
+        iso = str(r.get("date") or "")
+        if not iso:
+            continue
+        rows.append({
+            "date": iso,
+            "close": _number(r.get("close")),
+            "value_twd": _integer(r.get("Trading_money")),
+            "volume_shares": _integer(r.get("Trading_Volume")),
+        })
+    return rows
+
+
 def _fetch_stock_history(code: str, months: int = 2) -> tuple[list[dict[str, Any]], str | None]:
     anchor = _now_taipei().date().replace(day=1)
     rows: dict[str, dict[str, Any]] = {}
@@ -455,11 +650,15 @@ def _fetch_stock_history(code: str, months: int = 2) -> tuple[list[dict[str, Any
         month = anchor
         for _ in range(offset):
             month = (month - timedelta(days=1)).replace(day=1)
-        url = TWSE_STOCK_DAY_URL.format(code=code, yyyymmdd=month.strftime("%Y%m%d"))
-        try:
-            payload = _fetch_json(url)
-        except Exception as exc:  # keep partial history
-            error = str(exc)
+        yyyymmdd = month.strftime("%Y%m%d")
+        payload = None
+        for url in (TWSE_STOCK_DAY_URL, TWSE_STOCK_DAY_RWD):
+            try:
+                payload = _fetch_json(url.format(code=code, yyyymmdd=yyyymmdd))
+                break
+            except Exception as exc:
+                error = str(exc)
+        if payload is None:
             continue
         for row in _twse_tabular_rows(payload):
             iso = _iso_date(row.get("日期"))
@@ -471,6 +670,14 @@ def _fetch_stock_history(code: str, months: int = 2) -> tuple[list[dict[str, Any
                 "value_twd": _integer(row.get("成交金額")),
                 "volume_shares": _integer(row.get("成交股數")),
             }
+    if len(rows) < 15:  # TWSE blocked or thin — try FinMind for the whole window
+        try:
+            start = (anchor - timedelta(days=95)).strftime("%Y-%m-%d")
+            for r in _finmind_history(code, start):
+                rows.setdefault(r["date"], r)
+            error = None if len(rows) >= 15 else error
+        except Exception as exc:
+            error = error or str(exc)
     ordered = [rows[key] for key in sorted(rows)]
     return ordered, error
 
@@ -490,30 +697,60 @@ def _liquidity_from_history(history: list[dict[str, Any]], window: int) -> dict[
     }
 
 
+def _tpex_quotes(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    return data if isinstance(data, list) else []
+
+
 def _official_snapshot(
     watchlist: list[str], history_days: int
 ) -> dict[str, Any]:
-    jobs = {
-        "twse_quotes": TWSE_QUOTES_URL,
-        "twse_indices": TWSE_INDEX_URL,
-        "twse_market_stats": TWSE_MARKET_STATS_URL,
-        "twse_valuation": TWSE_VALUATION_URL,
-        "twse_holidays": TWSE_HOLIDAY_URL,
-        "tpex_quotes": TPEX_QUOTES_URL,
+    now = _now_taipei()
+    d8 = _recent_weekday_yyyymmdd(now)
+    roc = _roc_slash(now)
+
+    jobs: dict[str, list[tuple[str, Callable[[str], list[dict[str, Any]]]]]] = {
+        "twse_quotes": [
+            (TWSE_QUOTES_URL, _p_quotes_openapi),
+            (TWSE_QUOTES_RWD, _p_quotes_rwd_csv),
+        ],
+        "twse_indices": [
+            (TWSE_INDEX_URL, _p_indices_openapi),
+            (TWSE_INDEX_RWD.format(yyyymmdd=d8), _p_indices_rwd),
+        ],
+        "twse_market_stats": [
+            (TWSE_MARKET_STATS_URL, _p_stats_openapi),
+            (TWSE_MARKET_STATS_RWD.format(yyyymmdd=d8), _p_stats_rwd),
+        ],
+        "twse_valuation": [
+            (TWSE_VALUATION_URL, _p_valuation_openapi),
+            (TWSE_VALUATION_RWD.format(yyyymmdd=d8), _make_p_valuation_rwd(None)),
+        ],
+        "twse_holidays": [
+            (TWSE_HOLIDAY_URL, _p_holiday_openapi),
+            (TWSE_HOLIDAY_RWD.format(roc=roc), _p_holiday_rwd),
+        ],
+        "tpex_quotes": [
+            (TPEX_QUOTES_URL, _tpex_quotes),
+        ],
     }
-    results: dict[str, Any] = {}
+
+    results: dict[str, list[dict[str, Any]]] = {}
     errors: list[dict[str, str]] = []
     with ThreadPoolExecutor(max_workers=len(jobs)) as executor:
-        futures = {executor.submit(_fetch_json, url): (name, url) for name, url in jobs.items()}
+        futures = {executor.submit(_chain, specs): name for name, specs in jobs.items()}
         for future in as_completed(futures):
-            name, url = futures[future]
+            name = futures[future]
             try:
-                data = future.result()
-                if not isinstance(data, list):
-                    raise ValueError("Expected a JSON array.")
-                results[name] = data
+                rows, notes = future.result()
+                results[name] = rows
+                if not rows:
+                    errors.append({"source": name, "error": "; ".join(notes) or "no data"})
+                elif any(n.startswith("used fallback") for n in notes):
+                    errors.append({"source": name, "note": "; ".join(notes)})
             except Exception as exc:
-                errors.append({"source": name, "url": url, "error": str(exc)})
+                results[name] = []
+                errors.append({"source": name, "error": str(exc)})
 
     indices, index_warnings = _normalize_indices(results.get("twse_indices", []))
     closed = _holiday_closed_dates(results.get("twse_holidays", []))
@@ -644,10 +881,11 @@ def build_snapshot(
         matches.append(enriched)
     unmatched = sorted(set(watchlist) - {row["code"] for row in matches})
 
+    hard_errors = [e for e in errors if e.get("error")]
     status = "ok"
     if not markets:
         status = "empty"
-    elif freshness["stale"] or errors:
+    elif freshness["stale"] or hard_errors:
         status = "degraded"
 
     return {

@@ -60,6 +60,25 @@
 - 正文照 report-contract.md。
 - 完成後用 SendUserFile 交給使用者，並一行說明狀態與是否 stale。
 
+## 三點五、Discord 摘要推播（排程模式）
+
+`DISCORD_WEBHOOK_URL` 存在時（排程），交付完成後發一段濃縮摘要：
+
+```
+python scripts/notify_discord.py --kind digest --message "<摘要>"
+```
+
+摘要（繁中、≤1500 字、可用 Discord markdown）：
+- 標題行：資料基準日 + 報告狀態 +（stale 時）新鮮度
+- 加權指數收盤與日變動、USD/TWD
+- 「本期最重要的三件事」三行
+- 三情境機率（基準/樂觀/悲觀）
+- 優先題材（PRIORITY_RESEARCH）名稱
+- 可執行觀察清單前 3 條
+- Notion 報告頁連結
+
+輕量模式用 `--kind light`，跳過當日用 `--kind skip`（一行原因），執行失敗用 `--kind alert`。
+
 ## 四、兩種模式都適用
 
 - 交付後務必依 state-memory.md 更新狀態記錄。
