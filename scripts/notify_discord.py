@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -58,13 +59,28 @@ def _chunks(text: str) -> list[str]:
     return [c for c in final if c.strip()]
 
 
+def _normalize_webhook(url: str) -> str:
+    # The legacy discordapp.com host 403s POSTs from some clients; discord.com works.
+    return url.replace("://discordapp.com/", "://discord.com/").replace(
+        "://ptb.discord.com/", "://discord.com/"
+    )
+
+
 def post(webhook: str, text: str) -> None:
+    webhook = _normalize_webhook(webhook)
+    headers = {
+        "Content-Type": "application/json",
+        # Discord 403s the default Python-urllib UA; it needs a real one.
+        "User-Agent": "taiwan-stock-daily-report (https://github.com/, 2.1)",
+    }
     for i, chunk in enumerate(_chunks(text)):
         body = json.dumps({"content": chunk}).encode("utf-8")
-        req = Request(webhook, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        req = Request(webhook, data=body, headers=headers, method="POST")
         with urlopen(req, timeout=20) as resp:
             if resp.status not in (200, 204):
                 raise RuntimeError(f"Discord webhook returned {resp.status}")
+        if i:
+            time.sleep(0.5)  # be gentle if a message was split
 
 
 def main() -> int:
