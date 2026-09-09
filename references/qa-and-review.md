@@ -7,10 +7,10 @@
 把報告草稿寫成 Markdown 檔（`/tmp/draft.md`），交付 Notion **之前**跑：
 
 ```
-python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --mode <full|light>
+python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --mode <full|light>
 ```
 
-機械檢查：18 章關鍵字是否齊、「自動產生‧未複核」是否標、三情境機率是否合計 100、候選股列是否有合法狀態值且欄位不過度空白、正文有無裸網址（來源清單除外）、報告是否揭露 `stale`／`degraded`、執行摘要點數。
+機械檢查：18 章關鍵字是否齊、「自動產生‧未複核」是否標、三情境機率是否合計 100、候選股列是否有合法狀態值且欄位不過度空白、正文有無裸網址（來源清單除外）、報告是否揭露 `stale`／`degraded`、執行摘要點數、**關鍵數字（加權指數、USD/TWD、美 10Y、Brent、美 CPI）是否與快照一致**（對不上 → warn「可能漏引或寫錯」）。
 
 依 `verdict` 動作：
 

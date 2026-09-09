@@ -66,7 +66,47 @@ def _find_scenario_probs(md: str) -> list[float]:
     return probs
 
 
-def check(md: str, market: dict | None, mode: str) -> dict:
+def _key_figures(market: dict | None, macro: dict | None) -> list[tuple[str, float | None, float]]:
+    """(label, value, relative tolerance) triples the report should reflect."""
+    out: list[tuple[str, float | None, float]] = []
+    if market:
+        for idx in market.get("indices", []):
+            if idx.get("name") == "發行量加權股價指數" and idx.get("close"):
+                out.append(("加權指數", round(idx["close"], 2), 0.002))
+        agg = market.get("market_aggregate_recent") or []
+        if agg and agg[-1].get("taiex_close"):
+            out.append(("加權指數收盤", round(agg[-1]["taiex_close"], 2), 0.002))
+    if macro:
+        for r in (macro.get("fred", {}) or {}).get("series", []):
+            k = r.get("key")
+            if k == "twd_usd" and r.get("actual"):
+                out.append(("USD/TWD", round(r["actual"], 2), 0.01))
+            elif k == "ust_10y" and r.get("actual"):
+                out.append(("美國 10Y 公債殖利率", round(r["actual"], 2), 0.03))
+            elif k == "brent" and r.get("actual"):
+                out.append(("Brent 原油", round(r["actual"], 1), 0.03))
+            elif k == "us_cpi" and r.get("yoy_pct"):
+                out.append(("美國 CPI 年增", round(r["yoy_pct"], 1), 0.15))
+        t = macro.get("us_treasury") or {}
+        if t.get("curve_pct", {}).get("10y"):
+            out.append(("10Y 殖利率(財政部)", round(t["curve_pct"]["10y"], 2), 0.03))
+    return out
+
+
+def _report_has_number_near(md: str, label: str, value: float, tol: float) -> bool:
+    """True if any number in the report is within tol of value (relative)."""
+    lo, hi = value * (1 - tol) - 0.01, value * (1 + tol) + 0.01
+    for m in re.finditer(r"[-+]?\d[\d,]*\.?\d*", md):
+        try:
+            n = float(m.group(0).replace(",", ""))
+        except ValueError:
+            continue
+        if lo <= n <= hi:
+            return True
+    return False
+
+
+def check(md: str, market: dict | None, macro: dict | None, mode: str) -> dict:
     issues: list[dict] = []
 
     def add(sev: str, msg: str) -> None:
@@ -129,6 +169,13 @@ def check(md: str, market: dict | None, mode: str) -> dict:
         if market.get("status") == "degraded" and "degraded" not in md and "降級" not in md and "部分" not in md:
             add("warn", "market snapshot status=degraded 但報告未反映")
 
+    # number cross-check: key figures the report states must trace to a snapshot
+    for label, value, tol in _key_figures(market, macro):
+        if value is None:
+            continue
+        if not _report_has_number_near(md, label, value, tol):
+            add("warn", f"報告未見與快照一致的「{label}」（快照值 ≈ {value}）；可能漏引或寫錯")
+
     # exec summary bullet count (full)
     if mode == "full":
         seg = re.search(r"執行摘要(.+?)(?:\n#{1,3}\s|\Z)", md, re.S)
@@ -154,6 +201,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--report", required=True, help="path to the draft report markdown")
     ap.add_argument("--market", help="path to market.json (optional cross-check)")
+    ap.add_argument("--macro", help="path to macro.json (optional cross-check)")
     ap.add_argument("--mode", choices=["full", "light"], default="full")
     ap.add_argument("--output", default="-")
     args = ap.parse_args()
@@ -161,14 +209,16 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
 
     md = Path(args.report).read_text(encoding="utf-8")
-    market = None
-    if args.market and Path(args.market).exists():
-        try:
-            market = json.loads(Path(args.market).read_text(encoding="utf-8"))
-        except Exception:
-            market = None
 
-    result = check(md, market, args.mode)
+    def _load(p):
+        if p and Path(p).exists():
+            try:
+                return json.loads(Path(p).read_text(encoding="utf-8"))
+            except Exception:
+                return None
+        return None
+
+    result = check(md, _load(args.market), _load(args.macro), args.mode)
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output == "-":
         print(text)

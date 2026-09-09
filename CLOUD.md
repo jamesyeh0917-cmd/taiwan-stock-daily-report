@@ -4,9 +4,11 @@
 
 ## 執行步驟
 
-### 0. 決定今天要不要跑（省 token）
+### 0. 讀設定 + 決定今天要不要跑（省 token）
 
-先查 Notion「台股每日研究報告」資料庫中日期早於今日的最新一筆，取其資料基準日，然後：
+先讀 `./config.json`：`watchlist_core`、`screen_top`、`news_window_hours`、Notion data source id 等。後續所有命令用 config 的值，不要用寫死清單。
+
+查 Notion「台股每日研究報告」資料庫中日期早於今日的最新一筆，取其資料基準日，然後：
 
 ```
 python scripts/trading_day.py --last-report-date <前一份的資料基準日> --allow-light
@@ -31,6 +33,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    多層備援（openapi → www.twse.com.tw/rwd → FinMind）＋重試。讀 `status` / `freshness` / `errors`。每檔 watchlist 附 `signals`。
 4b. **全市場粗篩**：`python scripts/screen_universe.py --top 30 --core 2330,2317,2454,2382,2408,2344,3711,2308 --output /tmp/shortlist.json`
 4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind，免金鑰）。
+4d. **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output /tmp/news.json`（鉅亨網 + 經濟日報 + 中央社）。優先於 WebSearch。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
 6b. **price-in**：對每個優先題材已發生的主要催化劑，跑
@@ -48,7 +51,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    | 題材檔案 | `collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c` |
 
 7b. **產出 QA（交付前）**：把報告草稿寫成 `/tmp/draft.md`，跑
-   `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --mode <full|light>`。
+   `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --mode <full|light>`。
    依 [references/qa-and-review.md](references/qa-and-review.md)：`fail` → 仍交付但頁面加 callout、`複核狀態`=有疑慮、Discord 標「⚠️ QA 未通過」；`warn` → warnings 併進 §14；QA JSON 貼進 §15 toggle。
 7c. 把 market/macro/fundamentals 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
 

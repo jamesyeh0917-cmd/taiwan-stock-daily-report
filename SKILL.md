@@ -25,6 +25,7 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
 ## 執行流程
 
 1. 定義問題。
+   - 讀 [config.json](config.json) 取得 `watchlist_core`、`screen_top`、`news_window_hours`、各門檻與 Notion data source id。**所有 watchlist／門檻的唯一來源是 config.json**，不要用寫死值。
    - 確認國家、資料期間、分析截止時間、指標、分析目的、投資市場與投資期限。
    - 未指定時，採用 [references/research-method.md](references/research-method.md) 的預設範圍與「排程／每日模式」規則。
 2. 建立資料截止線。
@@ -41,6 +42,7 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
    - **全市場粗篩（第一階段）**：`python scripts/screen_universe.py --top 30 --core 2330,2317,2454,2382,2408,2344,3711,2308 --output <shortlist.json>` → 取得 30 檔輪動候選 + 核心清單。
    - **個股基本面與籌碼面（第二階段）**：`python scripts/fetch_fundamentals.py --watchlist <shortlist 的 codes> --output <fundamentals.json>`（FinMind）。近一年 PER／PBR 分位、三大法人買賣超、融資融券、月營收 YoY／MoM、股利。缺值填 N/A。
    - **總經數據**：`python scripts/fetch_macro_snapshot.py --output <macro.json>`（FRED key 由 `scripts/.env` 或環境變數帶入）。讀 `macro_snapshot.json` 作為美國、殖利率、油價、Euro、匯率的一手來源。
+   - **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output <news.json>` → 鉅亨網 API + 經濟日報／中央社 RSS 的當日標題、摘要、tagged 個股、題材／總經話題計數。**優先於 WebSearch**（WebSearch 美國區、常拿舊快取）。標 D 級，引用前開原始文件。
    - **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 直抓官方新聞稿與經濟日曆，補齊腳本未涵蓋項。
    - 先用腳本與官方頁，媒體只補脈絡。事實與推論分開。
 5. 建立證據帳本。
@@ -65,7 +67,7 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
 10. 產生報告並 QA。
    - 讀取 [references/report-contract.md](references/report-contract.md)，依固定順序呈現，含「與前一份報告的變化」章節。
    - **每週一次**（週一或每月 1 日）另做回測校準：依 backtest-calibration.md 跑 `scripts/backtest.py`，寫報告 §13.7。
-   - 報告草稿寫成 Markdown 檔後，依 [references/qa-and-review.md](references/qa-and-review.md) 跑 `python scripts/validate_report.py --report <draft.md> --market <market.json> --mode <full|light>`；依 verdict 決定 `複核狀態` 與是否在 Discord 標「QA 未通過」。
+   - 報告草稿寫成 Markdown 檔後，依 [references/qa-and-review.md](references/qa-and-review.md) 跑 `python scripts/validate_report.py --report <draft.md> --market <market.json> --macro <macro.json> --mode <full|light>`（含結構檢查 + 關鍵數字對快照交叉比對）；依 verdict 決定 `複核狀態` 與是否在 Discord 標「QA 未通過」。
 11. 交付。
     - 讀取 [references/output-delivery.md](references/output-delivery.md)。Notion 模式建當日頁（含 `複核狀態` 屬性、§15 的 QA JSON 與原始快照 toggle）+ 更新證據帳本／候選股／題材檔案三個子資料庫 + 回連前一份。
     - 依 [references/state-memory.md](references/state-memory.md) 更新狀態記錄。

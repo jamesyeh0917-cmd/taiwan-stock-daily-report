@@ -44,7 +44,9 @@
 
 | 檔案 | 角色 |
 |---|---|
+| `config.json` | 唯一設定來源：watchlist、門檻、Notion data source id |
 | `CLOUD.md` | 雲端代理的執行入口（步驟 0–12） |
+| `scripts/fetch_news.py` | 台股／總經新聞（鉅亨網 API + 經濟日報／中央社 RSS） |
 | `SKILL.md` | 完整 11 步流程規範 |
 | `references/research-method.md` | 時間契約、`analysis_as_of` 規則、新鮮度閘門、信心等級 |
 | `references/data-sources.md` + `sources.json` | 來源清單與證據分級（A–E） |

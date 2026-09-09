@@ -43,7 +43,7 @@
 
 ### 兩階段篩選
 
-1. **第一階段（全市場粗篩）**：`python scripts/screen_universe.py --top 30 --core 2330,2317,2454,2382,2408,2344,3711,2308 --output <shortlist.json>`
+1. **第一階段（全市場粗篩）**：`python scripts/screen_universe.py --top <config.screen_top> --core <config.watchlist_core 逗號串> --output <shortlist.json>`（清單與門檻皆來自 `config.json`）
    一次 BWIBBU_ALL + STOCK_DAY_ALL 呼叫，掃全部上市普通股，粗篩（單日成交金額 ≥ 5,000 萬、0<PER≤60、排除跌停），依「成交量排名 + 當日振幅 + 輕度低本益比」混合分排序取前 30，再加固定核心清單。輸出 `codes`。
 2. **第二階段（深度資料）**：對 `shortlist.json` 的 `codes` 跑 `fetch_fundamentals.py` 與 watchlist 版 `fetch_market_snapshot.py`，取得 PER 分位、法人、月營收、訊號。
 3. 題材與個股評分仍**從題材出發**：先確定優先題材，再從 shortlist ∪ 核心清單中找該題材的直接曝險標的。shortlist 是「網」，不是候選名單本身——它讓固定 8 檔以外的輪動標的有機會被看見。
