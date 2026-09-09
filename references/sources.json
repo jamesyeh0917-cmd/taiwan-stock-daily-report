@@ -27,7 +27,8 @@
     {"name": "TWSE 交易日曆 holidaySchedule", "tier": "A", "format": "json", "url": "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"},
     {"name": "TPEx OpenAPI 目錄", "tier": "A", "url": "https://www.tpex.org.tw/openapi/"},
     {"name": "TPEx 上櫃個股收盤行情", "tier": "A", "format": "json", "cadence": "trading-day", "url": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes"},
-    {"name": "公開資訊觀測站 MOPS", "tier": "B", "topics": ["財報", "重大訊息", "法說", "月營收"], "url": "https://mops.twse.com.tw/mops/web/index"}
+    {"name": "公開資訊觀測站 MOPS", "tier": "B", "topics": ["財報", "重大訊息", "法說", "月營收"], "url": "https://mops.twse.com.tw/mops/web/index"},
+    {"name": "FinMind API", "tier": "B", "format": "json", "topics": ["個股歷史 PER/PBR", "三大法人買賣超", "融資融券", "月營收", "股利", "個股/指數日 K"], "note": "scripts/fetch_fundamentals.py 使用；免費約 300 req/hr，FINMIND_TOKEN 可提高；資料源為 TWSE/TPEx/MOPS 之整理，非第一手", "url": "https://api.finmindtrade.com/api/v4/data"}
   ],
   "global_macro": [
     {"name": "IMF Data", "tier": "C", "url": "https://data.imf.org/"},

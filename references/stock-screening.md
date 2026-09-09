@@ -63,27 +63,36 @@
 
 ## 四、個股評分
 
-計算 100 分原始分，再扣 0–30 分風險折減：
+計算 100 分原始分，再扣 0–30 分風險折減。**資料來源優先用腳本輸出**：`market.json` 的 `watchlist.matches[].signals`、`fundamentals.json` 的 `codes[].*`。
 
-| 維度 | 配分 | 所需證據 |
+| 維度 | 配分 | 所需證據與資料來源 |
 |---|---:|---|
-| 題材直接曝險 | 25 | 產品、地區、客戶、產能或營收占比 |
-| 營運與獲利確認 | 20 | 營收、訂單、毛利、獲利或展望趨勢 |
-| 財務品質 | 15 | 現金流、槓桿、資本支出與治理 |
-| 估值合理性 | 10 | 與自身歷史、同業或獲利成長一致比較；快照 `watchlist.matches[].valuation` 提供當日 PER／PBR／殖利率作起點，仍需比對自身歷史區間 |
-| 市場驗證 | 10 | 價量、相對強弱或法人行為；只作驗證 |
-| 流動性與可執行性 | 10 | 成交金額、交易狀態、價差與事件風險 |
-| 催化劑 | 10 | 財報、法說、投產、訂單或政策時間點 |
+| 題材直接曝險 | 22 | 產品、地區、客戶、產能或營收占比（公司公告／法說／營收結構） |
+| 營運與獲利確認 | 18 | `month_revenue`：latest YoY／MoM、`trailing_3m_avg_yoy_pct`；加訂單、毛利、展望。月營收 3 月均 YoY 明顯放緩 → 扣分 |
+| 財務品質 | 12 | 現金流、槓桿、資本支出、治理、股利（`dividend`） |
+| 估值 | 15 | `valuation_history`：`per_1y_percentile`、`pbr_1y_percentile`、1 年 PER 區間。分位 ≤30 且獲利成長 → 高分；分位 ≥90 → 低分且入風險折減；無 FinMind 資料退回當日 PER／PBR 並降信心 |
+| 籌碼面 | 10 | `institutional`：三大法人 5／20 日淨買超方向與規模、`trust_net_20d`；`margin_short`：融資餘額 5／20 日變化（急增為負向）、券資比 |
+| 市場驗證（量化） | 10 | `signals`：`rel_strength_20d_pct`（相對大盤強弱）、`return_20d/60d_pct`、`volume_ratio_vs_20d`、`vs_ma20/60_pct`。只作驗證，不作單獨入選理由 |
+| 流動性與可執行性 | 8 | 20 日中位成交金額、交易狀態、事件風險 |
+| 催化劑 | 10 | 財報、法說、投產、訂單、政策、除息（`dividend.cash_ex_date`）時間點 |
 
-風險折減包括：客戶集中、單一產品、匯率與原料敏感、負債、稀釋、治理、法規、地緣、景氣反轉、估值過高、題材已高度反映。
+風險折減包括：客戶集中、單一產品、匯率與原料敏感、負債、稀釋、治理、法規、地緣、景氣反轉、**PER 近一年分位 ≥90**、**融資餘額 20 日急增**、**近月營收 MoM 大幅轉弱**、題材已高度反映。
 
 個股狀態：
 
-- 淨分 `≥75` 且沒有硬性排除：`PRIORITY_RESEARCH`。
-- 淨分 `60–74`：`WATCH`。
+- 淨分 `≥75`、沒有硬性排除、**且 `valuation_history.available` 為真（有近一年估值分位佐證）**：`PRIORITY_RESEARCH`。
+- 淨分 `60–74`，或分數達標但無 FinMind 估值分位：`WATCH`。
 - 淨分 `<60`、硬性排除或關鍵資料缺失：`ABSTAIN`。
 
 即使分數達標，沒有經驗證的交易策略、成本估計與前向證據時也不得標為 `BUY`。
+
+### 量化訊號的解讀（`signals`）
+
+- `rel_strength_20d_pct` 明顯為正 = 近月跑贏大盤；明顯為負 = 落後（如題材股卻落後，是警訊）。
+- `return_60d_pct` 已大幅為正 + `vs_ma20_pct` 高 = 漲多，追價風險，估值維度要更嚴。
+- `volume_ratio_vs_20d` ≫ 1 + 大漲 = 過熱訊號；≪ 1 = 量縮，動能可能衰竭。
+- `realized_vol_20d_annual_pct` 極高（如 >50%）= 波動大，部位與失效條件要更保守。
+- 訊號互相矛盾（漲但法人賣、量縮）→ 在研究摘要點出，降市場驗證分。
 
 ## 五、候選數量與多樣性
 
@@ -101,18 +110,20 @@ theme
 analysis_as_of
 evidence_date
 direct_exposure
-fundamental_confirmation
-valuation_basis          (含當日 PER/PBR/殖利率與自身歷史區間比較)
-liquidity_evidence       (註明是 20 日中位或單日代理值)
+fundamental_confirmation      (含月營收 YoY/MoM 與 3 月均 YoY)
+valuation_basis               (PER 近一年分位 + 1 年區間；無資料則當日 PER/PBR + 降信心)
+chip_side                     (三大法人 5/20 日淨買超、融資餘額變化、券資比)
+quant_signals                 (相對大盤 20 日強弱、20/60 日動能、量能比)
+liquidity_evidence            (註明是 20 日中位或單日代理值)
 liquidity_window_days
-catalysts
+catalysts                     (含除息日)
 counter_evidence
 invalidation_conditions
 gross_score
 risk_deduction
 net_score
 status
-change_vs_previous       (新進榜/維持/升級/降級 + 原因)
+change_vs_previous            (新進榜/維持/升級/降級 + 原因)
 source_urls
 ```
 

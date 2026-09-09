@@ -25,6 +25,7 @@ import argparse
 import csv
 import io
 import json
+import os
 import re
 import ssl
 import sys
@@ -58,8 +59,9 @@ TWSE_HOLIDAY_URL = "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedu
 TWSE_HOLIDAY_RWD = "https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json&queryYear={roc}"
 TWSE_STOCK_DAY_URL = "https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&stockNo={code}&date={yyyymmdd}"
 TWSE_STOCK_DAY_RWD = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?response=json&stockNo={code}&date={yyyymmdd}"
-FINMIND_URL = "https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id={code}&start_date={start}"
+FINMIND_BASE = "https://api.finmindtrade.com/api/v4/data"
 TPEX_QUOTES_URL = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes"
+SIGNAL_HISTORY_DAYS = 130  # calendar days (~85 trading) for momentum / MA / vol signals
 
 # Exchange-listed ETFs and similar products commonly use codes beginning with 0.
 # A four-digit code beginning with 1-9 is a conservative common-stock proxy.
@@ -625,11 +627,20 @@ def _recent_weekday_yyyymmdd(now: datetime) -> str:
     return d.strftime("%Y%m%d")
 
 
-def _finmind_history(code: str, start: str) -> list[dict[str, Any]]:
-    text = _fetch_text(FINMIND_URL.format(code=code, start=start))
-    payload = json.loads(text)
+def _finmind(dataset: str, data_id: str, start: str) -> list[dict[str, Any]]:
+    token = os.environ.get("FINMIND_TOKEN", "")
+    url = f"{FINMIND_BASE}?dataset={dataset}&data_id={data_id}&start_date={start}"
+    if token:
+        url += f"&token={token}"
+    payload = json.loads(_fetch_text(url))
+    if isinstance(payload, dict) and payload.get("msg") not in (None, "success"):
+        raise RuntimeError(f"FinMind {dataset}: {payload.get('msg')}")
+    return payload.get("data", []) if isinstance(payload, dict) else []
+
+
+def _finmind_price_history(code: str, start: str) -> list[dict[str, Any]]:
     rows = []
-    for r in payload.get("data", []) if isinstance(payload, dict) else []:
+    for r in _finmind("TaiwanStockPrice", code, start):
         iso = str(r.get("date") or "")
         if not iso:
             continue
@@ -639,14 +650,23 @@ def _finmind_history(code: str, start: str) -> list[dict[str, Any]]:
             "value_twd": _integer(r.get("Trading_money")),
             "volume_shares": _integer(r.get("Trading_Volume")),
         })
-    return rows
+    return sorted(rows, key=lambda x: x["date"])
 
 
 def _fetch_stock_history(code: str, months: int = 2) -> tuple[list[dict[str, Any]], str | None]:
-    anchor = _now_taipei().date().replace(day=1)
-    rows: dict[str, dict[str, Any]] = {}
+    start = (_now_taipei().date() - timedelta(days=SIGNAL_HISTORY_DAYS)).strftime("%Y-%m-%d")
     error: str | None = None
-    for offset in range(months):
+    # FinMind first: one clean call, ~85 trading days, not IP-blocked.
+    try:
+        rows = _finmind_price_history(code, start)
+        if len(rows) >= 15:
+            return rows, None
+    except Exception as exc:
+        error = str(exc)
+    # Fallback: TWSE per-month STOCK_DAY (openapi then rwd).
+    anchor = _now_taipei().date().replace(day=1)
+    merged: dict[str, dict[str, Any]] = {}
+    for offset in range(max(months, 4)):
         month = anchor
         for _ in range(offset):
             month = (month - timedelta(days=1)).replace(day=1)
@@ -658,28 +678,70 @@ def _fetch_stock_history(code: str, months: int = 2) -> tuple[list[dict[str, Any
                 break
             except Exception as exc:
                 error = str(exc)
-        if payload is None:
-            continue
-        for row in _twse_tabular_rows(payload):
+        for row in _twse_tabular_rows(payload or {}):
             iso = _iso_date(row.get("日期"))
             if not iso:
                 continue
-            rows[iso] = {
+            merged[iso] = {
                 "date": iso,
                 "close": _number(row.get("收盤價")),
                 "value_twd": _integer(row.get("成交金額")),
                 "volume_shares": _integer(row.get("成交股數")),
             }
-    if len(rows) < 15:  # TWSE blocked or thin — try FinMind for the whole window
-        try:
-            start = (anchor - timedelta(days=95)).strftime("%Y-%m-%d")
-            for r in _finmind_history(code, start):
-                rows.setdefault(r["date"], r)
-            error = None if len(rows) >= 15 else error
-        except Exception as exc:
-            error = error or str(exc)
-    ordered = [rows[key] for key in sorted(rows)]
-    return ordered, error
+    ordered = [merged[k] for k in sorted(merged)]
+    return ordered, (None if len(ordered) >= 15 else error)
+
+
+def _fetch_index_history() -> list[dict[str, Any]]:
+    start = (_now_taipei().date() - timedelta(days=SIGNAL_HISTORY_DAYS)).strftime("%Y-%m-%d")
+    try:
+        return _finmind_price_history("TAIEX", start)
+    except Exception:
+        return []
+
+
+def _pct_return(series: list[float], lookback: int) -> float | None:
+    if len(series) <= lookback or series[-1 - lookback] in (None, 0):
+        return None
+    return round((series[-1] / series[-1 - lookback] - 1.0) * 100.0, 2)
+
+
+def _compute_signals(hist: list[dict[str, Any]], index_hist: list[dict[str, Any]]) -> dict[str, Any]:
+    closes = [r["close"] for r in hist if r["close"] is not None]
+    vols = [r["volume_shares"] for r in hist if r["volume_shares"] is not None]
+    if len(closes) < 25:
+        return {"available": False, "reason": f"only {len(closes)} closes"}
+    idx_closes = [r["close"] for r in index_hist if r["close"] is not None]
+
+    def ma(series: list[float], n: int) -> float | None:
+        return round(sum(series[-n:]) / n, 2) if len(series) >= n else None
+
+    ma20, ma60 = ma(closes, 20), ma(closes, 60)
+    last = closes[-1]
+    r20 = _pct_return(closes, 20)
+    idx_r20 = _pct_return(idx_closes, 20) if len(idx_closes) >= 21 else None
+    daily_rets = [
+        (closes[i] / closes[i - 1] - 1.0)
+        for i in range(1, len(closes)) if closes[i - 1]
+    ][-20:]
+    vol_ann = None
+    if len(daily_rets) >= 10:
+        mean = sum(daily_rets) / len(daily_rets)
+        var = sum((x - mean) ** 2 for x in daily_rets) / (len(daily_rets) - 1)
+        vol_ann = round((var ** 0.5) * (252 ** 0.5) * 100, 1)
+    avg_vol20 = sum(vols[-20:]) / min(len(vols), 20) if vols else None
+    return {
+        "available": True,
+        "as_of": hist[-1]["date"],
+        "return_5d_pct": _pct_return(closes, 5),
+        "return_20d_pct": r20,
+        "return_60d_pct": _pct_return(closes, 60),
+        "rel_strength_20d_pct": None if (r20 is None or idx_r20 is None) else round(r20 - idx_r20, 2),
+        "vs_ma20_pct": None if ma20 in (None, 0) else round((last / ma20 - 1) * 100, 2),
+        "vs_ma60_pct": None if ma60 in (None, 0) else round((last / ma60 - 1) * 100, 2),
+        "volume_ratio_vs_20d": None if not avg_vol20 else round(vols[-1] / avg_vol20, 2),
+        "realized_vol_20d_annual_pct": vol_ann,
+    }
 
 
 def _liquidity_from_history(history: list[dict[str, Any]], window: int) -> dict[str, Any]:
@@ -756,8 +818,10 @@ def _official_snapshot(
     closed = _holiday_closed_dates(results.get("twse_holidays", []))
 
     history: dict[str, Any] = {}
+    signals: dict[str, Any] = {}
     codes = [c for c in watchlist if COMMON_STOCK_RE.fullmatch(c)][:MAX_HISTORY_CODES]
     if history_days and codes:
+        index_hist = _fetch_index_history()
         with ThreadPoolExecutor(max_workers=min(6, len(codes))) as executor:
             futures = {executor.submit(_fetch_stock_history, code): code for code in codes}
             for future in as_completed(futures):
@@ -766,11 +830,14 @@ def _official_snapshot(
                     rows, err = future.result()
                 except Exception as exc:
                     history[code] = {"available": False, "reason": str(exc)}
+                    signals[code] = {"available": False, "reason": str(exc)}
                     continue
                 if not rows:
                     history[code] = {"available": False, "reason": err or "no rows"}
+                    signals[code] = {"available": False, "reason": err or "no rows"}
                 else:
                     history[code] = _liquidity_from_history(rows, history_days)
+                    signals[code] = _compute_signals(rows, index_hist)
 
     return {
         "twse_rows": _normalize_twse(results.get("twse_quotes", [])),
@@ -781,6 +848,7 @@ def _official_snapshot(
         "valuation": _valuation_lookup(results.get("twse_valuation", [])),
         "closed_dates": closed,
         "liquidity_history": history,
+        "signals": signals,
         "errors": errors,
     }
 
@@ -794,6 +862,7 @@ def build_snapshot(
     market_stats: list[dict[str, Any]] = []
     valuation: dict[str, dict[str, Any]] = {}
     liquidity_history: dict[str, Any] = {}
+    signals: dict[str, Any] = {}
     closed_dates: set[str] = set()
     warnings: list[str] = []
     sources: list[dict[str, str]] = []
@@ -809,6 +878,7 @@ def build_snapshot(
         market_stats = official["market_stats"]
         valuation = official["valuation"]
         liquidity_history = official["liquidity_history"]
+        signals = official["signals"]
         closed_dates = official["closed_dates"]
         errors = official["errors"]
         warnings.extend(official["index_warnings"])
@@ -878,6 +948,8 @@ def build_snapshot(
             enriched["valuation"] = valuation[row["code"]]
         if row["code"] in liquidity_history:
             enriched["liquidity_history"] = liquidity_history[row["code"]]
+        if row["code"] in signals:
+            enriched["signals"] = signals[row["code"]]
         matches.append(enriched)
     unmatched = sorted(set(watchlist) - {row["code"] for row in matches})
 

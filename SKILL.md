@@ -14,6 +14,7 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
 | WebFetch | 直抓台／中／日官方新聞稿與經濟日曆 consensus（見 [references/macro-fetch.md](references/macro-fetch.md)） | 對應儀表板格標「本期未取得」，報告狀態降 `部分`，不得臆測 |
 | WebSearch | 補新聞脈絡、交叉查證、找官方新聞稿列表 | 只用 WebFetch 已知頁 + 腳本；未能查證的區塊明列 |
 | `FRED_API_KEY` | `scripts/fetch_macro_snapshot.py` 取美國 CPI／就業／殖利率、油價、Euro HICP、匯率 | 腳本自動降級（仍出財政部殖利率曲線）；缺口逐項改 WebFetch FRED 網頁，降信心 |
+| FinMind（免費，無金鑰亦可） | `scripts/fetch_fundamentals.py` 取個股 PER 分位、法人、融資券、月營收、股利 | 個股基本面／籌碼面章節標「未取得」，估值退回當日 PER／PBR，個股狀態上限 WATCH。設 `FINMIND_TOKEN` 可提高額度 |
 | Python 3 | 執行 `scripts/*.py`（行情、總經、交易日判斷、Discord 推播） | 改用使用者提供的 CSV／JSON／XLSX；否則台股行情與部分總經章節標為缺資料 |
 | `openpyxl` | 讀取 `.xlsx` | 請使用者改存 UTF-8 CSV |
 | Notion MCP（`notion-*` 工具） | 交付報告到 Notion（含證據帳本／候選股子資料庫） | 依 [references/output-delivery.md](references/output-delivery.md) 改輸出 Markdown 檔並提示使用者 |
@@ -35,8 +36,9 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
    - 若找不到（首次執行），明確標示「無前期基準」。
 4. 蒐集證據。
    - 讀取 [references/data-sources.md](references/data-sources.md) 與 [references/sources.json](references/sources.json)。
-   - **台股行情**：`python scripts/fetch_market_snapshot.py --watchlist 2330,2317 --output <market.json>`
-     讀 `freshness`：若 `stale` 為真或 `status=degraded`，依 research-method 新鮮度規則處理。使用者提供 CSV／JSON／XLSX 時改 `--input <file>`。
+   - **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist 2330,2317 --output <market.json>`
+     讀 `freshness`：若 `stale` 為真或 `status=degraded`，依 research-method 新鮮度規則處理。每檔 watchlist 附 `signals`（5/20/60 日動能、相對大盤強弱、量能比、實現波動）。使用者提供 CSV／JSON／XLSX 時改 `--input <file>`。
+   - **個股基本面與籌碼面**：`python scripts/fetch_fundamentals.py --watchlist 2330,2317 --output <fundamentals.json>`（FinMind）。近一年 PER／PBR 分位、三大法人買賣超、融資融券、月營收 YoY／MoM、股利。缺值填 N/A。
    - **總經數據**：`python scripts/fetch_macro_snapshot.py --output <macro.json>`（FRED key 由 `scripts/.env` 或環境變數帶入）。讀 `macro_snapshot.json` 作為美國、殖利率、油價、Euro、匯率的一手來源。
    - **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 直抓官方新聞稿與經濟日曆，補齊腳本未涵蓋項。
    - 先用腳本與官方頁，媒體只補脈絡。事實與推論分開。
