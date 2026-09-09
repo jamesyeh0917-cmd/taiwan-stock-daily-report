@@ -1,0 +1,65 @@
+{
+  "note": "機器可讀的來源登錄表。與 data-sources.md 搭配使用：先開該次發布的統計表或決策文件，不要只引用入口首頁。所有 URL 使用時都要記錄資料期、發布時間與擷取時間。",
+  "evidence_tiers": {
+    "A": "政府統計機關、央行、監理機關、交易所、法規與正式政策文件",
+    "B": "公司公告、財報、法說、公開資訊觀測站、正式產業組織資料",
+    "C": "IMF、OECD、BIS、世界銀行等國際機構研究與資料",
+    "D": "具編採與更正制度的可信媒體，僅供即時脈絡",
+    "E": "社群、論壇、未具名消息，只能當線索"
+  },
+  "taiwan_macro": [
+    {"name": "行政院主計總處", "tier": "A", "topics": ["GDP", "CPI", "PPI", "就業", "薪資"], "url": "https://www.stat.gov.tw/", "opendata": "https://www.stat.gov.tw/cp.aspx?n=2727"},
+    {"name": "中央銀行", "tier": "A", "topics": ["政策利率", "理監事會", "匯率", "貨幣總計數", "信用"], "url": "https://www.cbc.gov.tw/"},
+    {"name": "國家發展委員會", "tier": "A", "topics": ["景氣燈號", "領先同時指標", "PMI", "NMI"], "url": "https://www.ndc.gov.tw/"},
+    {"name": "經濟部統計處", "tier": "A", "topics": ["外銷訂單", "工業生產", "批發零售"], "url": "https://www.moea.gov.tw/MNS/dos/home/Home.aspx"},
+    {"name": "財政部統計處", "tier": "A", "topics": ["進出口", "財政收支"], "url": "https://www.mof.gov.tw/"},
+    {"name": "勞動部", "tier": "A", "topics": ["失業率", "受僱員工", "實質薪資"], "url": "https://www.mol.gov.tw/"},
+    {"name": "金融監督管理委員會", "tier": "A", "topics": ["金融監理", "重大政策"], "url": "https://www.fsc.gov.tw/"},
+    {"name": "全國法規資料庫", "tier": "A", "topics": ["法律命令", "生效日期", "沿革"], "url": "https://law.moj.gov.tw/"}
+  ],
+  "taiwan_market": [
+    {"name": "TWSE OpenAPI 目錄", "tier": "A", "url": "https://openapi.twse.com.tw/"},
+    {"name": "TWSE 上市個股日成交 STOCK_DAY_ALL", "tier": "A", "format": "json", "cadence": "trading-day", "lag_note": "openapi 鏡像可能落後 1-2 個交易日，以 freshness 區塊為準", "url": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"},
+    {"name": "TWSE 大盤統計 FMTQIK", "tier": "A", "format": "json", "cadence": "trading-day", "note": "近 5 個交易日大盤成交值量與加權指數，作為 STOCK_DAY_ALL 的交叉驗證與發布日判定", "url": "https://openapi.twse.com.tw/v1/exchangeReport/FMTQIK"},
+    {"name": "TWSE 個股本益比殖利率股價淨值比 BWIBBU_ALL", "tier": "A", "format": "json", "cadence": "trading-day", "url": "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"},
+    {"name": "TWSE 加權與類股指數 MI_INDEX", "tier": "A", "format": "json", "url": "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX"},
+    {"name": "TWSE 個股月成交明細 STOCK_DAY", "tier": "A", "format": "json", "params": "stockNo, date=YYYYMMDD", "note": "供 watchlist 個股補抓多日量能歷史", "url": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&stockNo=2330&date=20260901"},
+    {"name": "TWSE 交易日曆 holidaySchedule", "tier": "A", "format": "json", "url": "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"},
+    {"name": "TPEx OpenAPI 目錄", "tier": "A", "url": "https://www.tpex.org.tw/openapi/"},
+    {"name": "TPEx 上櫃個股收盤行情", "tier": "A", "format": "json", "cadence": "trading-day", "url": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes"},
+    {"name": "公開資訊觀測站 MOPS", "tier": "B", "topics": ["財報", "重大訊息", "法說", "月營收"], "url": "https://mops.twse.com.tw/mops/web/index"}
+  ],
+  "global_macro": [
+    {"name": "IMF Data", "tier": "C", "url": "https://data.imf.org/"},
+    {"name": "OECD Economic Outlook", "tier": "C", "url": "https://www.oecd.org/en/topics/economic-outlook.html"},
+    {"name": "World Bank Data", "tier": "C", "url": "https://data.worldbank.org/"},
+    {"name": "BIS Statistics", "tier": "C", "url": "https://www.bis.org/statistics/"}
+  ],
+  "united_states": [
+    {"name": "Federal Reserve / FOMC", "tier": "A", "url": "https://www.federalreserve.gov/monetarypolicy/fomc.htm"},
+    {"name": "FRED", "tier": "A", "url": "https://fred.stlouisfed.org/"},
+    {"name": "Bureau of Economic Analysis", "tier": "A", "topics": ["GDP", "PCE"], "url": "https://www.bea.gov/"},
+    {"name": "Bureau of Labor Statistics", "tier": "A", "topics": ["CPI", "PPI", "非農就業"], "url": "https://www.bls.gov/"},
+    {"name": "U.S. Treasury", "tier": "A", "topics": ["殖利率", "財政", "制裁"], "url": "https://home.treasury.gov/"},
+    {"name": "U.S. Census Bureau", "tier": "A", "topics": ["零售", "耐久財", "貿易"], "url": "https://www.census.gov/"}
+  ],
+  "china": [
+    {"name": "國家統計局", "tier": "A", "url": "https://www.stats.gov.cn/"},
+    {"name": "中國人民銀行", "tier": "A", "topics": ["LPR", "MLF", "社融"], "url": "http://www.pbc.gov.cn/"},
+    {"name": "海關總署", "tier": "A", "topics": ["進出口"], "url": "http://www.customs.gov.cn/"},
+    {"name": "國務院", "tier": "A", "topics": ["政策原文"], "url": "https://www.gov.cn/"}
+  ],
+  "euro_area_japan": [
+    {"name": "European Central Bank 貨幣政策決策", "tier": "A", "url": "https://www.ecb.europa.eu/press/govcdec/mopo/html/index.en.html"},
+    {"name": "Eurostat", "tier": "A", "url": "https://ec.europa.eu/eurostat/"},
+    {"name": "Bank of Japan", "tier": "A", "url": "https://www.boj.or.jp/en/"},
+    {"name": "Statistics Bureau of Japan", "tier": "A", "url": "https://www.stat.go.jp/english/"},
+    {"name": "Cabinet Office Japan", "tier": "A", "topics": ["GDP", "景氣動向"], "url": "https://www.esri.cao.go.jp/en/"}
+  ],
+  "cross_asset_reference": [
+    {"name": "台幣匯率", "source": "中央銀行 / 台北外匯", "tier": "A"},
+    {"name": "美國公債殖利率", "source": "U.S. Treasury Daily Yield Curve", "tier": "A"},
+    {"name": "布蘭特原油 / 黃金", "source": "EIA / LBMA 或可信財經媒體標註時間", "tier": "A/D"},
+    {"name": "費城半導體指數 SOX", "source": "交易所或可信財經媒體，僅作題材傳導參考", "tier": "D"}
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "台灣與全球總經投資研究"
+  short_description: "整合總經、政策、新聞與台股題材個股的可追溯研究報告"
+  default_prompt: "使用 $taiwan-stock-daily-report 以最新可得資料產生台灣為核心的全球總經、政策與新聞研究報告，建立三情境後篩選台股題材與研究候選。"

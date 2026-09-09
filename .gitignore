@@ -1,0 +1,5 @@
+scripts/.env
+scripts/state/
+scripts/__pycache__/
+*.pyc
+*.snapshot.json
