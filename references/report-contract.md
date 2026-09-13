@@ -29,10 +29,10 @@
 
 ## 1. 報告識別
 
-- 標題：`台灣與全球總經投資研究｜YYYY-MM-DD`（日期為資料基準日）。
-- 顯示：`analysis_as_of`、時區、`cadence`（ad-hoc／daily）、研究期間、資料最新期、擷取時間、報告狀態（完整／部分／資料不足）。
+- 標題：排程模式下用 `scripts/trading_day.py` 輸出的 `report_title`；ad-hoc 模式自行組 `台灣與全球總經投資研究｜YYYY-MM-DD`（日期為資料基準日）。
+- 顯示：`analysis_as_of`、時區、`cadence`（ad-hoc／daily）、研究期間、資料最新期、擷取時間、報告狀態（完整／部分／資料不足——排程模式預設用 `scripts/summarize_run_status.py` 的 `suggested_report_status`，有更強理由才覆寫）。
 - 顯示行情新鮮度：快照 `as_of_date`、`freshness.stale`、落後交易日數、TWSE／TPEx 是否同日。
-- 顯示工具降級：WebSearch／WebFetch／Python／Notion 任一不可用時逐項列出，以及對應章節受影響的範圍。
+- 顯示工具降級：排程模式用 `summarize_run_status.py` 的 `tools_degraded`／`degraded_sources`／`missing_sources`；WebSearch／WebFetch 等腳本涵蓋不到的來源仍需另行列出，並說明對應章節受影響的範圍。
 - 顯示前一份報告：連結與其資料基準日；首次執行標「無前期基準」。
 - 自動排程且未經人工複核：明確標「自動產生‧未複核」。顯示 `複核狀態`（待複核／已複核／有疑慮）與 QA verdict（pass／warn／fail）。
 - 若任何資料在 `analysis_as_of` 後才擷取，標示為事後擷取，並說明可證明的原始發布時間；無法證明時不得放入截止線報告。

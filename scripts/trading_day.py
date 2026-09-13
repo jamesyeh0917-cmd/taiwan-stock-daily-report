@@ -6,8 +6,15 @@ report has not covered yet. Otherwise (weekend, holiday, or the report
 already ran for the latest session) the run is "light" (macro + news only)
 or "skip".
 
+Also the single canonical source for "what date/title does this run's report
+get" — report_date, report_title and notion_date_property should be copied
+verbatim by the caller (Notion page title/property, validate_report.py's
+--expected-base-date) rather than re-derived from prose each run. This is
+what a light-mode report's date/title must use too: it represents the same
+trading session as the prior report, not today's wall-clock date.
+
 Usage:
-  python scripts/trading_day.py [--last-report-date YYYY-MM-DD] [--allow-light]
+  python scripts/trading_day.py [--last-report-date YYYY-MM-DD] [--allow-light] [--revision N]
 
 Prints a JSON object and exits 0. The caller reads `recommendation`.
 """
@@ -111,7 +118,12 @@ def main() -> int:
     parser.add_argument("--last-report-date", help="資料基準日 of the most recent prior report (YYYY-MM-DD)")
     parser.add_argument("--allow-light", action="store_true",
                         help="emit 'light' instead of 'skip' when there is no new session")
+    parser.add_argument("--revision", type=int, default=1,
+                        help="pass N>1 when this is a same-day rerun of an already-published "
+                             "report_date; only affects title_suffix, does not change recommendation")
     args = parser.parse_args()
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
     now = _now_tp()
     closed, had_calendar = _closed_dates(now)
@@ -127,6 +139,21 @@ def main() -> int:
         recommendation = "full"
         reason = f"最近收盤 {last_session} 尚未有報告（前一份 = {args.last_report_date or '無'}）"
 
+    # report_date is the single canonical answer to "what date does this run's
+    # report represent" — always the last completed trading session, never
+    # wall-clock "today", in every mode including light. Everything downstream
+    # (page title, Notion 資料基準日 property, validate_report.py's
+    # --expected-base-date) should copy these fields rather than re-deriving
+    # the same rule from prose each run.
+    report_date = last_session
+    if recommendation == "light":
+        title_suffix = " (輕量)"
+    elif args.revision > 1:
+        title_suffix = f" (修訂 {args.revision})"
+    else:
+        title_suffix = ""
+    report_title = f"台灣與全球總經投資研究｜{report_date}{title_suffix}"
+
     print(json.dumps({
         "checked_at": now.isoformat(timespec="seconds"),
         "today": today,
@@ -136,6 +163,10 @@ def main() -> int:
         "holiday_calendar_loaded": had_calendar,
         "recommendation": recommendation,
         "reason": reason,
+        "report_date": report_date,
+        "title_suffix": title_suffix,
+        "report_title": report_title,
+        "notion_date_property": {"start": report_date, "is_datetime": 0},
     }, ensure_ascii=False, indent=2))
     return 0
 

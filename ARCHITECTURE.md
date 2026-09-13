@@ -63,7 +63,8 @@
 | `scripts/fetch_fundamentals.py` | FinMind：PER 分位、法人、融資券、月營收、股利 |
 | `scripts/fetch_industry_flow.py` | 官方產業分類 + 全市場取樣 → 三大法人產業資金流排行 |
 | `references/industry-flow.md` | 產業資金流方法論、口徑限制、Phase 1/2 範圍 |
-| `scripts/trading_day.py` | full / light / skip 決策 |
+| `scripts/trading_day.py` | full / light / skip 決策 + 唯一的日期／標題計算來源（`report_date`／`report_title`／`notion_date_property`） |
+| `scripts/summarize_run_status.py` | 彙總 market/macro/fundamentals/news/industry_flow 的降級狀態 → 建議的 `狀態`（完整/部分/資料不足）與 `工具降級` |
 | `scripts/price_in.py` | 事件研究：催化劑是否已反映 |
 | `scripts/backtest.py` | 過去呼叫 vs 前瞻報酬的命中率 |
 | `scripts/screen_universe.py` | 全市場粗篩（第一階段）→ 30 檔 shortlist |
@@ -125,6 +126,8 @@ model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內�
 
 `light` = 只跑 macro + 新聞掃描，加一頁「（輕量）」，不重算情境、不做個股篩選。
 `skip` = 只發一則 Discord 說明。
+
+同時輸出 `report_date`／`title_suffix`／`report_title`／`notion_date_property`——這是頁面標題與 `資料基準日` 屬性的唯一計算來源，之後每一步（含 `validate_report.py --expected-base-date`、健康檢查）都直接引用這幾個欄位，不重新判斷日期。這是為了修掉一類真實發生過的 bug：輕量模式的日期規則本來就寫在文件裡，但 2026-09-13 執行時代理沒套用，把執行日寫進了屬性，觸發健康檢查誤報。詳見 `git log` 的 `Fix light-mode date mislabeling` 與 `Move error-prone logic into code` 相關 commit。
 
 ### 步驟 1–2 — 定義問題與資料截止線
 

@@ -7,7 +7,7 @@
 把報告草稿寫成 Markdown 檔（`/tmp/draft.md`），交付 Notion **之前**跑：
 
 ```
-python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light> --expected-base-date <trading_day.py 的 last_completed_session>
+python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light> --expected-base-date <trading_day.py 輸出的 report_date>
 ```
 
 機械檢查：18 章關鍵字是否齊、「自動產生‧未複核」是否標、三情境機率是否合計 100、候選股列是否有合法狀態值且欄位不過度空白、正文有無裸網址、報告是否揭露 `stale`／`degraded`、執行摘要點數、`資料基準日` 是否對上行情快照、`資料基準日` 是否對上 `--expected-base-date`（輕量模式沒有 market.json 可比對時，這是唯一能抓到日期誤填執行日的檢查）。
@@ -37,8 +37,8 @@ python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.js
 主流程若在「能發告警」之前就死掉（沙箱崩潰、clone 失敗、Claude 認證失效），它自己發不出 alert。獨立 routine 補這個洞。
 
 健康檢查 routine 的代理：
-1. 算今天預期的資料基準日（最近已收盤交易日）。
-2. 查「台股每日研究報告」DB 最新一筆：資料基準日對不對、`狀態` 是不是 `資料不足`、建立時間是不是 26 小時內。
+1. 跑 `python scripts/trading_day.py --last-report-date <前一份報告的資料基準日> --allow-light`，用其 `report_date` 作為今天預期的資料基準日（不要自己重新判斷「最近已收盤交易日」——這正是 `report_date` 存在的目的）。
+2. 查「台股每日研究報告」DB 最新一筆：資料基準日是否等於上面的 `report_date`、`狀態` 是不是 `資料不足`、建立時間是不是 26 小時內。
 3. 查「證據帳本」「候選股追蹤」今日 `報告日` 有沒有列（≥5 / ≥3）。
 4. 把這些事實寫成 `facts.json`，跑 `python scripts/healthcheck.py --facts facts.json`。
 5. `healthcheck.py` 判斷有無異常，有 → 自動發 Discord alert。無 → 靜默。
