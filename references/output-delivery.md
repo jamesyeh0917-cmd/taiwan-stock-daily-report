@@ -89,6 +89,8 @@ python scripts/notify_discord.py --kind digest --message "<摘要>"
 - 可執行觀察清單前 3 條
 - Notion 報告頁連結
 
+文字語氣依 [SKILL.md](../SKILL.md)「寫作語氣」：口語化講重點，不要把報告章節的生硬敘述原封不動搬過來——這是使用者最常隨手看到的部分，數字仍要精確，但講法要像口頭跟人講盤面重點。
+
 輕量模式用 `--kind light`，跳過當日用 `--kind skip`（一行原因），執行失敗用 `--kind alert`。
 
 ## 四、兩種模式都適用
