@@ -30,12 +30,13 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 
 1. **依 [SKILL.md](SKILL.md) 的流程完整執行**。參考檔在 `references/`，腳本在 `scripts/`。
 2. `cadence = daily`。時間基準見 [references/research-method.md](references/research-method.md)。
-3. **總經數據**：先 `export FRED_API_KEY`（金鑰由 routine prompt 提供），再
+3. **總經數據**：`FRED_API_KEY` 已由 routine 的環境變數設定注入 process env，不需自己 `export`，直接跑
    `python scripts/fetch_macro_snapshot.py --output /tmp/macro.json`
 4. **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist <config.watchlist_core> --history-days <config.history_days> --output /tmp/market.json`
    多層備援（openapi → www.twse.com.tw/rwd → FinMind）＋重試。讀 `status` / `freshness` / `errors`。每檔 watchlist 附 `signals`。
 4b. **全市場粗篩**：`python scripts/screen_universe.py --top <config.screen_top> --core <config.watchlist_core> --output /tmp/shortlist.json`
 4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind；有 `FINMIND_TOKEN` 環境變數則自動用，額度較高）。
+4c-2. **產業資金流排行**：`python scripts/fetch_industry_flow.py --per-industry <config.industry_flow_per_industry> --min-turnover <config.industry_flow_min_turnover_twd> --output /tmp/industry_flow.json`（FinMind 官方產業分類 + 全市場成交值取樣 + 三大法人買賣超彙總；見 [references/industry-flow.md](references/industry-flow.md)）。此步驟可容許失敗降級（輸出 `industries: []`），不得中斷全程。
 4d. **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output /tmp/news.json`（鉅亨網 + 經濟日報 + 中央社）。優先於 WebSearch。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
@@ -56,14 +57,14 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 7b. **產出 QA（交付前）**：把報告草稿寫成 `/tmp/draft.md`，跑
    `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light>`。
    依 [references/qa-and-review.md](references/qa-and-review.md)：`fail` → 仍交付但頁面加 callout、`複核狀態`=有疑慮、Discord 標「⚠️ QA 未通過」；`warn` → warnings 併進 §14；QA JSON 貼進 §15 toggle。
-7c. 把 market/macro/fundamentals 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
+7c. 把 market/macro/fundamentals/industry_flow 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
 
 8. 報告標題與開頭 callout 標「自動產生‧未複核」；報告 DB 設 `複核狀態`（排程一律 `待複核`，QA fail 則 `有疑慮`）。
 9. 全程非互動：不要問問題。不確定就依 skill 降級規則處理並在報告中記錄。
 
 ### 11. 推播 Discord 摘要（每種模式結束時都要做）
 
-`DISCORD_WEBHOOK_URL` 由 routine prompt 提供。組一段簡短摘要（≤1500 字），用：
+`DISCORD_WEBHOOK_URL` 已由 routine 的環境變數設定注入，不需自己 `export`。組一段簡短摘要（≤1500 字），用：
 
 ```
 python scripts/notify_discord.py --kind <digest|light|skip> --message "<內容>"
@@ -90,4 +91,4 @@ Notion 連接器工具不存在時：把完整報告輸出成 Markdown 檔到工
 - Python 3（標準庫即可）
 - 網路：FRED、TWSE openapi + www.twse.com.tw、FinMind、TPEx、美國財政部、各國官方新聞稿、WebSearch/WebFetch、Discord webhook
 - Notion 連接器（claude.ai connector）已授權且可存取上述三個資料庫
-- 環境變數（routine prompt export）：`FRED_API_KEY`、`DISCORD_WEBHOOK_URL`
+- 環境變數（由各 routine 的環境變數設定注入 process env，執行時已存在，不需自己 export）：`FRED_API_KEY`、`FINMIND_TOKEN`（全量與週報排程）、`DISCORD_WEBHOOK_URL`
