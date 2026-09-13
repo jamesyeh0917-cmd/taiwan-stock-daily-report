@@ -14,6 +14,7 @@ Prints a JSON verdict. The daily run must run this on its draft and:
 
 Usage:
   python scripts/validate_report.py --report draft.md [--market market.json] [--mode full|light]
+    [--expected-base-date YYYY-MM-DD]
 """
 
 from __future__ import annotations
@@ -150,7 +151,8 @@ def _figure_issue(md: str, fig: dict) -> str | None:
             f"（快照 {fig['source']} ≈ {round(v, 3)}）— 可能寫錯或幻覺")
 
 
-def check(md: str, market: dict | None, macro: dict | None, mode: str, fundamentals: dict | None = None) -> dict:
+def check(md: str, market: dict | None, macro: dict | None, mode: str, fundamentals: dict | None = None,
+          expected_base_date: str | None = None) -> dict:
     issues: list[dict] = []
 
     def add(sev: str, msg: str) -> None:
@@ -227,6 +229,18 @@ def check(md: str, market: dict | None, macro: dict | None, mode: str, fundament
         if m and m.group(1) != market["as_of_date"] and not market.get("freshness", {}).get("stale"):
             add("warn", f"報告資料基準日 {m.group(1)} != 行情快照 as_of {market['as_of_date']}")
 
+    # 資料基準日 vs trading_day.py's expected last_completed_session — this is the
+    # only cross-check available in light mode (no market.json to compare against),
+    # and catches a report mistakenly dated to today's execution date instead of the
+    # trading session it actually covers.
+    if expected_base_date:
+        m = re.search(r"資料基準日[：:\s|]*([\d]{4}-[\d]{2}-[\d]{2})", md)
+        if m and m.group(1) != expected_base_date:
+            add("fail", f"報告資料基準日 {m.group(1)} != 預期 {expected_base_date}"
+                        f"（trading_day.py 的 last_completed_session；輕量模式也應沿用此日期，不得填執行日）")
+        elif not m:
+            add("warn", "提供了 --expected-base-date 但報告識別表中找不到「資料基準日」可核對")
+
     # exec summary bullet count (full)
     if mode == "full":
         seg = re.search(r"執行摘要(.+?)(?:\n#{1,3}\s|\Z)", md, re.S)
@@ -255,6 +269,9 @@ def main() -> int:
     ap.add_argument("--macro", help="path to macro.json (optional cross-check)")
     ap.add_argument("--fundamentals", help="path to fundamentals.json (optional cross-check)")
     ap.add_argument("--mode", choices=["full", "light"], default="full")
+    ap.add_argument("--expected-base-date",
+                     help="YYYY-MM-DD from trading_day.py's last_completed_session; cross-checked "
+                          "against the report's 資料基準日 (works even without --market)")
     ap.add_argument("--output", default="-")
     args = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
@@ -270,7 +287,8 @@ def main() -> int:
                 return None
         return None
 
-    result = check(md, _load(args.market), _load(args.macro), args.mode, _load(args.fundamentals))
+    result = check(md, _load(args.market), _load(args.macro), args.mode, _load(args.fundamentals),
+                   args.expected_base_date)
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output == "-":
         print(text)

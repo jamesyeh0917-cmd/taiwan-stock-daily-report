@@ -7,10 +7,10 @@
 把報告草稿寫成 Markdown 檔（`/tmp/draft.md`），交付 Notion **之前**跑：
 
 ```
-python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light>
+python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light> --expected-base-date <trading_day.py 的 last_completed_session>
 ```
 
-機械檢查：18 章關鍵字是否齊、「自動產生‧未複核」是否標、三情境機率是否合計 100、候選股列是否有合法狀態值且欄位不過度空白、正文有無裸網址、報告是否揭露 `stale`／`degraded`、執行摘要點數、`資料基準日` 是否對上行情快照。
+機械檢查：18 章關鍵字是否齊、「自動產生‧未複核」是否標、三情境機率是否合計 100、候選股列是否有合法狀態值且欄位不過度空白、正文有無裸網址、報告是否揭露 `stale`／`degraded`、執行摘要點數、`資料基準日` 是否對上行情快照、`資料基準日` 是否對上 `--expected-base-date`（輕量模式沒有 market.json 可比對時，這是唯一能抓到日期誤填執行日的檢查）。
 
 **數字幻覺偵測**：對每個快照裡的可查數字（加權指數、殖利率、油價、匯率、Euro/US CPI；watchlist 每檔的收盤／PER／PBR；FinMind 每檔的 PER／PER 分位／月營收 YoY），若報告有提到該指標名稱**但鄰近沒有與快照一致的數字** → warn「可能寫錯或幻覺」。實測可抓到「台積電 PER 寫成 88（實際 28.6）」「月營收年增寫成 12%（實際 44.7%）」。
 

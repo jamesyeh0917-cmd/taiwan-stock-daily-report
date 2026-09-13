@@ -55,7 +55,8 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    | 題材檔案 | `collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c` |
 
 7b. **產出 QA（交付前）**：把報告草稿寫成 `/tmp/draft.md`，跑
-   `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light>`。
+   `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light> --expected-base-date <步驟0 trading_day.py 算出的 last_completed_session>`。
+   `--expected-base-date` 務必帶，尤其輕量模式下沒有 `market.json` 可比對，這是唯一能抓到「頁面日期誤填執行日」的檢查。
    依 [references/qa-and-review.md](references/qa-and-review.md)：`fail` → 仍交付但頁面加 callout、`複核狀態`=有疑慮、Discord 標「⚠️ QA 未通過」；`warn` → warnings 併進 §14；QA JSON 貼進 §15 toggle。
 7c. 把 market/macro/fundamentals/industry_flow 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
 
