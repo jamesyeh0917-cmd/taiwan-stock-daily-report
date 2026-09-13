@@ -88,8 +88,8 @@ def evaluate(facts: dict) -> dict:
             except Exception:
                 pass
 
-    if facts.get("evidence_rows_for_date", 0) < 5:
-        problems.append(f"證據帳本本日僅 {facts.get('evidence_rows_for_date', 0)} 列（預期 ≥5）")
+    if facts.get("mode", "full") == "full" and facts.get("evidence_rows_for_date", 0) < 5:
+        problems.append(f"證據帳本本日僅 {facts.get('evidence_rows_for_date', 0)} 列（full 模式預期 ≥5）")
     if facts.get("candidate_rows_for_date", 0) < 3 and facts.get("mode", "full") == "full":
         problems.append(f"候選股追蹤本日僅 {facts.get('candidate_rows_for_date', 0)} 列（full 模式預期 ≥3）")
     for k in ("market_status", "macro_status"):
