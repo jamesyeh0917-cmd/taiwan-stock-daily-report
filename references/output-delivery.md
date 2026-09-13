@@ -40,7 +40,7 @@
 
 ### 子資料庫與題材檔案（累積型知識庫）
 
-報告頁的表格是快照；長期價值在這三組累積結構。位置與 ID 由 state-memory.md 的狀態記錄保存，第一次執行時建立、之後沿用。
+報告頁的表格是快照；長期價值在這四組累積結構。位置與 ID 由 state-memory.md 的狀態記錄保存，第一次執行時建立、之後沿用。
 
 1. **證據帳本資料庫**（`證據帳本`）
    - schema：`指標`(title)、`區域`(select)、`資料期`(date)、`實際值`(number)、`前值`(number)、`YoY%`(number)、`預期值`(text)、`歷史位置`(text)、`發布時間`(date)、`來源`(url)、`證據層級`(select A/B/C/D)、`報告日`(date)、`判讀`(text)
@@ -52,8 +52,18 @@
    - 一檔一列一報告日；可篩 status、排序淨分、看單一標的估值分位與營收動能歷史。
 3. **題材檔案資料庫**（`題材檔案`，`collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c`）
    - 依 [theme-dossier.md](theme-dossier.md)：每個 WATCH 以上題材一頁，內文每天**追加**日期小節，不重寫。
+4. **產業資金流資料庫**（`產業資金流`，`collection://662bd917-b622-4069-a62b-10b0610f1cbd`）
+   - schema：`產業`(title)、`資料基準日`(date)、`排名`(number)、`樣本數`(number)、`信心`(select: 正常/樣本不足)、`5日淨買超金額_TWD`(number)、`20日淨買超金額_TWD`(number)、`5日流動性強度_%`(number)、`正淨買超家數比`(number)、`重點成分股`(text)、`報告顯示範圍`(select: 前5淨流入/後3淨流出/未顯示)、`報告連結`(url)、`資料抓取時間`(date)
+   - 寫入 `fetch_industry_flow.py` 的**全部** `industries[]`（~30-35 個產業），不是報告 §8 顯示的 top-5/bottom-3 子集——完整基準集是未來 `backtest.py` 公平評估產業排名預測力的前提，只存報告挑選過的子集會製造倖存者偏誤。
+   - 每個產業一列一資料基準日；鍵為 `產業 + 資料基準日`，同日重跑用 update 不新增：
+     ```sql
+     SELECT "產業", url FROM "collection://662bd917-b622-4069-a62b-10b0610f1cbd"
+     WHERE date("資料基準日") = date('<今天的資料基準日>')
+     ```
+     回傳集合內的產業用 `notion-update-page`（`command: update_properties`，頁面 id 來自查到的 `url`）更新；不在集合內的用 `notion-create-pages` 批次新增（parent 用 `data_source_id`）。
+   - 90 天保存上限，見 [weekly-report.md](weekly-report.md) 資料保留段落。方法論見 [industry-flow.md](industry-flow.md)。
 
-三個子資料庫都在報告資料庫的父頁「Claude的台股財報分析資料庫」下。URL／data_source id 已固定（見上），寫進狀態記錄沿用。
+四個子資料庫都在報告資料庫的父頁「Claude的台股財報分析資料庫」下。URL／data_source id 已固定（見上），寫進狀態記錄沿用。
 
 ## 三、Markdown 檔模式
 

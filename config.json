@@ -15,6 +15,7 @@
     "evidence_db": "collection://f4318726-ba81-41f8-ad7f-de908be1f8ba",
     "candidates_db": "collection://b9dee6fc-0ab8-4ee3-a48c-eac1ab8a22ff",
     "theme_dossier_db": "collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c",
+    "industry_flow_db": "collection://662bd917-b622-4069-a62b-10b0610f1cbd",
     "weekly_page": "3d660fffda14818c8775e8729f8ec1bc"
   }
 }

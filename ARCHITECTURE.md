@@ -27,7 +27,8 @@
    步驟 7-8 三情境 → 題材評分 → 個股評分
    步驟 6c  更新「題材檔案」（追加當日小節）
    步驟 6d  週一/月初：backtest.py 回測校準
-   步驟 9-11 產 18 章報告 → 寫 Notion（4 個資料庫）→ 更新狀態
+   步驟 7a  產業資金流全量寫入 Notion（見下）
+   步驟 9-11 產 18 章報告 → 寫 Notion（5 個資料庫）→ 更新狀態
    步驟 11  notify_discord.py 推摘要
         │
         ▼
@@ -81,6 +82,7 @@
 | 證據帳本 | `collection://f4318726-…` | 每個總經/市場資料點一列，累積時間序列 |
 | 候選股追蹤 | `collection://b9dee6fc-…` | 每檔候選一列一報告日，含評分/估值分位/籌碼/訊號/進場價 |
 | 題材檔案 | `collection://608d5a9c-…` | 每個題材一頁，內文每天追加小節 |
+| 產業資金流 | `collection://662bd917-…` | 每個產業每個資料基準日一列，全量 ~30-35 個產業，供未來 backtest 驗證排名預測力，90 天保存上限 |
 
 ### 外部服務
 
@@ -91,7 +93,7 @@
 | TWSE openapi + www.twse.com.tw/rwd | 台股行情、指數、大盤統計、本益比、交易日曆 | 無 |
 | TPEx openapi | 上櫃行情 | 無 |
 | FinMind | 個股歷史 PER/PBR、三大法人、融資券、月營收、股利、個股/指數日 K | 無（`FINMIND_TOKEN` 可提高額度） |
-| Notion connector（claude.ai） | 讀寫 4 個資料庫 | routine 自動繼承 |
+| Notion connector（claude.ai） | 讀寫 5 個資料庫 | routine 自動繼承 |
 | Discord webhook | 推摘要與告警 | `DISCORD_WEBHOOK_URL` |
 | WebSearch / WebFetch | 台/中/日官方新聞稿、consensus、新聞脈絡 | Claude Code 內建 |
 
@@ -154,7 +156,7 @@ model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內�
 
 **`fetch_industry_flow.py`**（獨立於上面，樣本更寬但每檔只打 1 個 dataset）→
 - 官方產業分類（FinMind `TaiwanStockInfo`）× 全市場取樣（TWSE `STOCK_DAY_ALL`，依成交值每產業取前 N 檔）× 三大法人 5/20 日淨買超彙總（換算 NT$ 名目金額）。
-- 輸出依產業排名，含 `net_buy_pct_of_turnover_5d`（強度）、`positive_ratio`、樣本 <2 檔的 `observation_only` 標註。方法論與限制見 `references/industry-flow.md`；Phase 1 只餵報告文字，不寫 Notion。
+- 輸出依產業排名，含 `net_buy_5d_vs_daily_turnover_pct`（強度）、`positive_ratio`、樣本 <2 檔的 `observation_only` 標註。方法論與限制見 `references/industry-flow.md`；Phase 1 餵報告文字，Phase 2（已啟用）同時全量寫入「產業資金流」Notion 資料庫。
 
 **WebFetch**（`macro-fetch.md` 對照表）→
 - 台灣：主計總處 CPI/GDP、財政部進出口、經濟部外銷訂單/工業生產、國發會景氣、CIER + S&P PMI、央行利率/貨幣。
@@ -193,10 +195,14 @@ model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內�
 
 從「候選股追蹤」查 65 日前、未評估過的呼叫 → `backtest.py` → 見 §4 → 寫報告 §13.7。
 
+### 步驟 7a — 產業資金流全量寫入
+
+讀 `industry_flow.json` 的全部 `industries[]`（非報告顯示的 top5/bottom3 子集）→ 依 `資料基準日` 查重 → 新產業批次 `notion-create-pages`、既有產業（同日重跑）逐筆 `notion-update-page` → 標註當日 `報告顯示範圍`。見 `output-delivery.md` 第 4 項。`industries` 為空時整段跳過，不擋交付。
+
 ### 步驟 9–11 — 產報告、交付、更新狀態
 
 - 18 章（§0 關鍵數字看板 … §17 交付與狀態更新），見 `report-contract.md`。
-- 寫 4 個 Notion 資料庫，報告頁回連前一份。
+- 寫 5 個 Notion 資料庫，報告頁回連前一份。
 - 更新 `state/latest.json`（離線備份）。
 - `notify_discord.py --kind digest`：三件事 + 情境機率 + 優先題材 + 觀察清單前 3 + Notion 連結。
 
@@ -322,6 +328,7 @@ status = empty        (無任何市場列)
 1. **報告資料庫**：每份報告回連前一份 → 序列。下次執行查最新一筆做 diff。
 2. **證據帳本 / 候選股追蹤資料庫**：每個資料點/每檔候選一列一報告日 → 時間序列，可查趨勢、算回測。
 3. **題材檔案**：每題材一頁，內文每天追加日期小節（供應鏈對照、論述演變、催化劑進度）→ 不必每天重建脈絡。
+4. **產業資金流**：每個產業每個資料基準日一列，全量寫入供未來 backtest 用。與前三者不同——這個沒有永久保留層級，90 天硬性保存上限（見 `weekly-report.md`），過窗即刪。
 
 ---
 

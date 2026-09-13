@@ -1,6 +1,6 @@
 # 產業資金流排行（scripts/fetch_industry_flow.py）
 
-**Phase 1（目前狀態）**：只餵報告 §8「產業資金流小結」，純文字呈現。**沒有專屬 Notion DB，不寫入任何資料庫。** Phase 2（延後至累積約 1 個月實際輸出後）：接進 `backtest.py` 驗證「產業排名是否真的能預測後續報酬」，驗證有效再決定要不要建專屬 DB——沿用這個 skill 一貫先擱置未驗證功能、之後回頭評估的作法（見 `ARCHITECTURE.md` §8 已知邊界）。
+**Phase 1**：餵報告 §8「產業資金流小結」，純文字呈現當日 top-5/bottom-3。**Phase 2（已啟用）**：同時把完整 ~30-35 個產業全量寫入 Notion「產業資金流」資料庫（`collection://662bd917-b622-4069-a62b-10b0610f1cbd`，見 [output-delivery.md](output-delivery.md) 第 4 項），90 天保存上限（見 [weekly-report.md](weekly-report.md)）。這是原本要延後到「累積約 1 個月」才做的部分，提前啟用是為了讓資料從現在開始累積——實際拿去驗證預測力（接 `backtest.py`）仍要等樣本足夠後才會做。
 
 ## 這在解決什麼問題
 
@@ -43,5 +43,5 @@
 
 ## 與報告的關係
 
-- 日報 §8「產業資金流小結」：列淨流入前 5、淨流出後 3 的產業（含 `net_buy_pct_of_turnover_5d`、`positive_ratio`、`stock_count`、`confidence`）。
+- 日報 §8「產業資金流小結」：列淨流入前 5、淨流出後 3 的產業（含 `net_buy_5d_vs_daily_turnover_pct`、`positive_ratio`、`stock_count`、`confidence`）。
 - 對淨流入最高的 1-2 個產業，列其 `top_stocks`；**只有在該產業與當期優先題材重疊時**才銜接 §11 個股篩選——產業分類不能取代題材檔案（`theme-dossier.md`）的傳導鏈論證，兩者是不同層次的東西（廣泛靜態分類 vs. 事件驅動因果鏈）。

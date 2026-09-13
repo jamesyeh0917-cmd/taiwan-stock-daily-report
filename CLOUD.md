@@ -53,6 +53,14 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
    | 證據帳本 | `collection://f4318726-ba81-41f8-ad7f-de908be1f8ba` |
    | 候選股追蹤 | `collection://b9dee6fc-0ab8-4ee3-a48c-eac1ab8a22ff` |
    | 題材檔案 | `collection://608d5a9c-0854-4f21-8f09-9006f57d9b5c` |
+   | 產業資金流 | `collection://662bd917-b622-4069-a62b-10b0610f1cbd` |
+
+7a. **產業資金流寫入**：讀 `industry_flow.json` 的**全部** `industries[]`（不是報告顯示的 top5/bottom3 子集）。先查重：
+    ```sql
+    SELECT "產業", url FROM "collection://662bd917-b622-4069-a62b-10b0610f1cbd"
+    WHERE date("資料基準日") = date('<本次資料基準日>')
+    ```
+    產業名不在查詢結果中 → 批次 `notion-create-pages`（parent 用 `data_source_id`，一次最多 100 筆）新增；已在結果中 → 逐筆 `notion-update-page`（`command: update_properties`）更新，用查到的 `url` 對應的頁面 id。`排名` = 該日 `industries[]` 排序後的 1-based 位置；`報告顯示範圍` 依當日 top5/bottom3 標註（其餘標「未顯示」）；`報告連結` 填本次報告頁 URL。見 [references/output-delivery.md](references/output-delivery.md) 第 4 項、[references/industry-flow.md](references/industry-flow.md)。`industry_flow.json` 的 `industries` 為空時整段跳過，不擋交付。
 
 7b. **產出 QA（交付前）**：把報告草稿寫成 `/tmp/draft.md`，跑
    `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light> --expected-base-date <步驟0 trading_day.py 算出的 last_completed_session>`。
@@ -91,5 +99,5 @@ Notion 連接器工具不存在時：把完整報告輸出成 Markdown 檔到工
 
 - Python 3（標準庫即可）
 - 網路：FRED、TWSE openapi + www.twse.com.tw、FinMind、TPEx、美國財政部、各國官方新聞稿、WebSearch/WebFetch、Discord webhook
-- Notion 連接器（claude.ai connector）已授權且可存取上述三個資料庫
+- Notion 連接器（claude.ai connector）已授權且可存取上述四個資料庫
 - 環境變數（routine prompt export）：`FRED_API_KEY`、`DISCORD_WEBHOOK_URL`
