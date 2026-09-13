@@ -30,7 +30,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 
 1. **依 [SKILL.md](SKILL.md) 的流程完整執行**。參考檔在 `references/`，腳本在 `scripts/`。
 2. `cadence = daily`。時間基準見 [references/research-method.md](references/research-method.md)。
-3. **總經數據**：`FRED_API_KEY` 已由 routine 的環境變數設定注入 process env，不需自己 `export`，直接跑
+3. **總經數據**：先 `export FRED_API_KEY`（金鑰由 routine prompt 提供），再
    `python scripts/fetch_macro_snapshot.py --output /tmp/macro.json`
 4. **台股行情 + 量化訊號**：`python scripts/fetch_market_snapshot.py --watchlist <config.watchlist_core> --history-days <config.history_days> --output /tmp/market.json`
    多層備援（openapi → www.twse.com.tw/rwd → FinMind）＋重試。讀 `status` / `freshness` / `errors`。每檔 watchlist 附 `signals`。
@@ -64,7 +64,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 
 ### 11. 推播 Discord 摘要（每種模式結束時都要做）
 
-`DISCORD_WEBHOOK_URL` 已由 routine 的環境變數設定注入，不需自己 `export`。組一段簡短摘要（≤1500 字），用：
+`DISCORD_WEBHOOK_URL` 由 routine prompt 提供。組一段簡短摘要（≤1500 字），用：
 
 ```
 python scripts/notify_discord.py --kind <digest|light|skip> --message "<內容>"
@@ -91,4 +91,4 @@ Notion 連接器工具不存在時：把完整報告輸出成 Markdown 檔到工
 - Python 3（標準庫即可）
 - 網路：FRED、TWSE openapi + www.twse.com.tw、FinMind、TPEx、美國財政部、各國官方新聞稿、WebSearch/WebFetch、Discord webhook
 - Notion 連接器（claude.ai connector）已授權且可存取上述三個資料庫
-- 環境變數（由各 routine 的環境變數設定注入 process env，執行時已存在，不需自己 export）：`FRED_API_KEY`、`FINMIND_TOKEN`（全量與週報排程）、`DISCORD_WEBHOOK_URL`
+- 環境變數（routine prompt export）：`FRED_API_KEY`、`DISCORD_WEBHOOK_URL`
