@@ -7,6 +7,8 @@
   "liquidity_min_turnover_twd": 20000000,
   "per_1y_percentile_extreme": 90,
   "scenario_prob_daily_cap_pp": 10,
+  "industry_flow_per_industry": 3,
+  "industry_flow_min_turnover_twd": 10000000,
   "notion": {
     "parent_page": "3d560fffda14806986c9f0904c22eb46",
     "report_db": "collection://12f5e0a1-2f79-4eb0-abbc-49c468c1cd3f",

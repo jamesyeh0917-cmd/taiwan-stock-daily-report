@@ -60,6 +60,8 @@
 | `scripts/fetch_market_snapshot.py` | 台股行情 + 量化訊號 |
 | `scripts/fetch_macro_snapshot.py` | FRED + 美財政部殖利率曲線 |
 | `scripts/fetch_fundamentals.py` | FinMind：PER 分位、法人、融資券、月營收、股利 |
+| `scripts/fetch_industry_flow.py` | 官方產業分類 + 全市場取樣 → 三大法人產業資金流排行 |
+| `references/industry-flow.md` | 產業資金流方法論、口徑限制、Phase 1/2 範圍 |
 | `scripts/trading_day.py` | full / light / skip 決策 |
 | `scripts/price_in.py` | 事件研究：催化劑是否已反映 |
 | `scripts/backtest.py` | 過去呼叫 vs 前瞻報酬的命中率 |
@@ -149,6 +151,10 @@ model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內�
 - `margin_short`：融資餘額、5/20 日變化、券資比。
 - `month_revenue`：最新月營收 YoY、MoM、近 3 月平均 YoY。
 - `dividend`：最新現金/股票股利、除息日。
+
+**`fetch_industry_flow.py`**（獨立於上面，樣本更寬但每檔只打 1 個 dataset）→
+- 官方產業分類（FinMind `TaiwanStockInfo`）× 全市場取樣（TWSE `STOCK_DAY_ALL`，依成交值每產業取前 N 檔）× 三大法人 5/20 日淨買超彙總（換算 NT$ 名目金額）。
+- 輸出依產業排名，含 `net_buy_pct_of_turnover_5d`（強度）、`positive_ratio`、樣本 <2 檔的 `observation_only` 標註。方法論與限制見 `references/industry-flow.md`；Phase 1 只餵報告文字，不寫 Notion。
 
 **WebFetch**（`macro-fetch.md` 對照表）→
 - 台灣：主計總處 CPI/GDP、財政部進出口、經濟部外銷訂單/工業生產、國發會景氣、CIER + S&P PMI、央行利率/貨幣。
