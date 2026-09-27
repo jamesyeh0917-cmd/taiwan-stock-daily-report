@@ -26,7 +26,7 @@ override it with a stated reason, per report-contract.md §1.
 Usage:
   python scripts/summarize_run_status.py --mode full|light
     [--market market.json] [--macro macro.json] [--fundamentals fundamentals.json]
-    [--news news.json] [--industry-flow industry_flow.json]
+    [--news news.json] [--industry-flow industry_flow.json] [--trading-day trading_day.json]
 """
 
 from __future__ import annotations
@@ -102,8 +102,28 @@ def _check_fundamentals(data: dict | None) -> list[str]:
     return []
 
 
+def _check_trading_day(data: dict | None) -> list[str]:
+    """trading_day.py convention: holiday_source is "live"/"static_fallback"/"none".
+
+    Anything but "live" means the day's full/light/skip call and report_date
+    were decided without a freshly-fetched TWSE holiday calendar — worth a
+    line in 工具降級 even when the static fallback happened to be correct,
+    since a fallback that goes stale (new year not yet refreshed) silently
+    degrades to the old "assume every weekday is a trading day" behavior.
+    """
+    if data is None:
+        return []
+    source = data.get("holiday_source")
+    if source == "static_fallback":
+        return ["trading_day: holiday_source=static_fallback（TWSE 假日行事曆即時抓取失敗，改用倉庫內建的備援日曆）"]
+    if source == "none":
+        return ["trading_day: holiday_source=none（假日行事曆完全無法取得，僅用週一至週五樸素規則，可能誤判國定假日）"]
+    return []
+
+
 def summarize(mode: str, market: dict | None, macro: dict | None, fundamentals: dict | None,
-              news: dict | None, industry_flow: dict | None) -> dict[str, Any]:
+              news: dict | None, industry_flow: dict | None,
+              trading_day: dict | None = None) -> dict[str, Any]:
     degraded_sources: list[str] = []
     missing_sources: list[str] = []
 
@@ -114,6 +134,7 @@ def summarize(mode: str, market: dict | None, macro: dict | None, fundamentals: 
     degraded_sources += _check_errors_only("fetch_news", news)
     degraded_sources += _check_errors_only("fetch_industry_flow", industry_flow)
     degraded_sources += _check_fundamentals(fundamentals)
+    degraded_sources += _check_trading_day(trading_day)
 
     if mode == "full":
         if market is None:
@@ -148,6 +169,7 @@ def main() -> int:
     parser.add_argument("--fundamentals")
     parser.add_argument("--news")
     parser.add_argument("--industry-flow")
+    parser.add_argument("--trading-day")
     parser.add_argument("--output", default="-")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
@@ -160,6 +182,7 @@ def main() -> int:
         _load(args.fundamentals),
         _load(args.news),
         _load(args.industry_flow),
+        _load(args.trading_day),
     )
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output == "-":

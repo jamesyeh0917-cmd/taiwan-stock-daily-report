@@ -63,7 +63,7 @@
 | `scripts/fetch_fundamentals.py` | FinMind：PER 分位、法人、融資券、月營收、股利 |
 | `scripts/fetch_industry_flow.py` | 官方產業分類 + 全市場取樣 → 三大法人產業資金流排行 |
 | `references/industry-flow.md` | 產業資金流方法論、口徑限制、Phase 1/2 範圍 |
-| `scripts/trading_day.py` | full / light / skip 決策 + 唯一的日期／標題計算來源（`report_date`／`report_title`／`notion_date_property`） |
+| `scripts/trading_day.py` | full / light / skip 決策 + 唯一的日期／標題計算來源（`report_date`／`report_title`／`notion_date_property`）；假日行事曆 live 兩層失敗時讀 `scripts/data/holiday_calendar_fallback.json` |
 | `scripts/summarize_run_status.py` | 彙總 market/macro/fundamentals/news/industry_flow 的降級狀態 → 建議的 `狀態`（完整/部分/資料不足）與 `工具降級` |
 | `scripts/price_in.py` | 事件研究：催化劑是否已反映 |
 | `scripts/backtest.py` | 過去呼叫 vs 前瞻報酬的命中率 |
@@ -117,12 +117,13 @@ model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內�
 `trading_day.py --last-report-date <前一份資料基準日> --allow-light`
 
 運算：
-1. 抓交易日曆（rwd → openapi），取「放假/休市」日集合 `closed`。
-2. `expected_last_trading_day`：從現在往回，跳過週末與 `closed`；若現在 < 15:00 則從昨天起算。
-3. `recommendation`：
+1. 抓交易日曆（rwd → openapi，各自重試 3 次、雙 SSL context），取真正的休市日集合 `closed`：條件是名稱／說明含「放假」「補假」「休市」或「無交易」，且不含「開始交易」「最後交易」（後兩者是 TWSE 同一份資料裡的資訊性標記，本身仍是交易日）。**這裡修過一個真實的 bug**：舊版只比對「放假」，漏掉了「補假」（例如 2026 年 02-27、04-03、04-06、10-09、10-26 這五天）與「市場無交易，僅辦理結算交割作業」（春節前的結算日），這些天即使日曆抓取成功也會被誤判成交易日。
+2. 兩個 TWSE 端點都失敗時（同源，雲端 IP 被擋會兩個一起掛）→ 改讀倉庫內建的 `scripts/data/holiday_calendar_fallback.json`（每年 Q4 手動更新一次），而不是直接假設「這週沒有假日」。這是修掉 2026-09-25（中秋節）曾被誤判為交易日的根因：當時兩個即時來源剛好都失敗，程式碼直接把 `closed` 當空集合。`holiday_source` 欄位（`live`／`static_fallback`／`none`）記錄實際用的是哪一層，`summarize_run_status.py` 會把非 `live` 的情況併入「工具降級」。
+3. `expected_last_trading_day`：從現在往回，跳過週末與 `closed`；若現在 < 15:00 則從昨天起算。
+4. `recommendation`：
    - 前一份報告的資料基準日 == `expected_last_trading_day` → `light`（或 `skip`）
    - 否則 → `full`
-4. 日曆抓不到 → 保守當 `full`。
+5. 連靜態備援檔都沒有這個年份的資料（例如隔年日曆還沒更新）→ 保守當 `full`，且 `holiday_source=none`。
 
 `light` = 只跑 macro + 新聞掃描，加一頁「（輕量）」，不重算情境、不做個股篩選。
 `skip` = 只發一則 Discord 說明。
@@ -359,3 +360,4 @@ status = empty        (無任何市場列)
 - 情境機率由 Claude 判斷，非量化模型；回測是校準輸入，非最佳化。
 - 前瞻報酬/事件研究用收盤對收盤，無交易成本與滑價。
 - 每次執行消耗 Claude 用量（token），非另計 API 費；週末假日 `light` 也用少量。
+- `scripts/data/holiday_calendar_fallback.json` 只涵蓋已手動填入的年份（目前僅 2026）；TWSE 通常 Q4 公布隔年日曆，屆時若沒有人工更新這個檔案，跨年後「live 兩層都失敗」的日子會退回 `holiday_source=none`（樸素週一至週五規則），需要定期檢查更新。

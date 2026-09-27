@@ -11,10 +11,10 @@
 查 Notion「台股每日研究報告」資料庫中日期早於今日的最新一筆，取其資料基準日，然後：
 
 ```
-python scripts/trading_day.py --last-report-date <前一份的資料基準日> --allow-light
+python scripts/trading_day.py --last-report-date <前一份的資料基準日> --allow-light | tee /tmp/trading_day.json
 ```
 
-讀輸出的 `recommendation`。**這次執行的頁面標題、`資料基準日` 屬性、以後每一步要引用的日期，一律直接照抄本次輸出的 `report_date`／`report_title`／`notion_date_property` 三個欄位，不要自己重新判斷或算日期**——這是唯一的日期計算來源，包含 `light` 模式：即使今天執行、macro/新聞資料是今天抓的，`report_date` 仍是上一份已涵蓋的交易日，不是今天。填錯會觸發健康檢查誤報。
+輸出同時存成 `/tmp/trading_day.json`，供步驟 4e 的 `summarize_run_status.py` 讀取 `holiday_source`（TWSE 假日行事曆是即時抓到、還是掉回倉庫內建的備援日曆）。讀輸出的 `recommendation`。**這次執行的頁面標題、`資料基準日` 屬性、以後每一步要引用的日期，一律直接照抄本次輸出的 `report_date`／`report_title`／`notion_date_property` 三個欄位，不要自己重新判斷或算日期**——這是唯一的日期計算來源，包含 `light` 模式：即使今天執行、macro/新聞資料是今天抓的，`report_date` 仍是上一份已涵蓋的交易日，不是今天。填錯會觸發健康檢查誤報。
 
 - `full` → 有新的台股收盤尚未有報告 → 照下方完整流程跑。
 - `light` → 最近收盤已被前一份涵蓋（週末、假日、或今天稍早已跑過）→ **只做輕量更新**：
@@ -36,7 +36,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind；有 `FINMIND_TOKEN` 環境變數則自動用，額度較高）。
 4c-2. **產業資金流排行**：`python scripts/fetch_industry_flow.py --per-industry <config.industry_flow_per_industry> --min-turnover <config.industry_flow_min_turnover_twd> --output /tmp/industry_flow.json`（FinMind 官方產業分類 + 全市場成交值取樣 + 三大法人買賣超彙總；見 [references/industry-flow.md](references/industry-flow.md)）。此步驟可容許失敗降級（輸出 `industries: []`），不得中斷全程。
 4d. **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output /tmp/news.json`（鉅亨網 + 經濟日報 + 中央社）。優先於 WebSearch。
-4e. **彙總降級狀態**：`python scripts/summarize_run_status.py --mode <full|light> --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --news /tmp/news.json --industry-flow /tmp/industry_flow.json --output /tmp/run_status.json`（light 模式只帶有跑的檔案）。輸出的 `suggested_report_status` 當報告 §1「報告狀態」與 Notion `狀態` 屬性的預設值、`tools_degraded`／`degraded_sources` 直接用於「工具降級」段落——不要自己重新翻 4-5 個 JSON 檔判斷，除非有更強理由才覆寫預設值並說明原因。
+4e. **彙總降級狀態**：`python scripts/summarize_run_status.py --mode <full|light> --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --news /tmp/news.json --industry-flow /tmp/industry_flow.json --trading-day /tmp/trading_day.json --output /tmp/run_status.json`（light 模式只帶有跑的檔案，`--trading-day` 兩種模式都帶）。輸出的 `suggested_report_status` 當報告 §1「報告狀態」與 Notion `狀態` 屬性的預設值、`tools_degraded`／`degraded_sources` 直接用於「工具降級」段落——不要自己重新翻 4-5 個 JSON 檔判斷，除非有更強理由才覆寫預設值並說明原因。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
 6b. **price-in**：對每個優先題材已發生的主要催化劑，跑
