@@ -1,3 +1,7 @@
+# 【已停用】正式排程是 claude.ai 雲端 routine（見 CLOUD.md / ARCHITECTURE.md）。
+# 本機方案因 headless `claude -p` 無 Notion connector 而放棄；本檔內容也未跟上
+# 目前流程（config.json、trading_day.py 等），不要直接啟用。
+#
 # 台股每日研究報告 — 本機排程執行器
 # 由 Windows 工作排程器每天呼叫；headless 執行 taiwan-stock-daily-report skill。
 

@@ -50,17 +50,35 @@ def _load(path: str | None) -> dict[str, Any] | None:
         return None
 
 
+def _error_text(err: Any) -> str:
+    """Errors come as plain strings or as dicts like {"source":..., "note"/"error":...}
+    (market.json uses the dict form); joining the raw list crashed on the latter."""
+    if isinstance(err, dict):
+        src = err.get("source") or err.get("name") or ""
+        msg = err.get("note") or err.get("error") or err.get("message") or json.dumps(err, ensure_ascii=False)
+        return f"{src}: {msg}" if src else str(msg)
+    return str(err)
+
+
+def _join_errors(errors: list[Any], limit: int = 3) -> str:
+    return "; ".join(_error_text(e) for e in errors[:limit])
+
+
 def _check_status_field(name: str, data: dict | None) -> tuple[str | None, list[str]]:
     """market.json / macro.json convention: top-level status + errors."""
     if data is None:
         return None, []
     status = data.get("status")
-    errors = data.get("errors") or []
+    # {"source":..., "note": "used fallback ..."} means the primary endpoint failed but a
+    # fallback delivered — openapi.twse.com.tw blocks cloud IPs daily, so counting these
+    # would flag every cloud report as 部分. Only entries with "error" are real gaps.
+    errors = [e for e in (data.get("errors") or [])
+              if not (isinstance(e, dict) and "error" not in e)]
     notes = []
     if status and status != "ok":
-        notes.append(f"{name}: status={status}" + (f" ({'; '.join(errors[:3])})" if errors else ""))
+        notes.append(f"{name}: status={status}" + (f" ({_join_errors(errors)})" if errors else ""))
     elif errors:
-        notes.append(f"{name}: errors={'; '.join(errors[:3])}")
+        notes.append(f"{name}: errors={_join_errors(errors)}")
     return status, notes
 
 
@@ -70,7 +88,7 @@ def _check_errors_only(name: str, data: dict | None) -> list[str]:
         return []
     errors = data.get("errors") or []
     if errors:
-        return [f"{name}: errors={'; '.join(errors[:3])}"]
+        return [f"{name}: errors={_join_errors(errors)}"]
     return []
 
 

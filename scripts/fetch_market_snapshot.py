@@ -618,13 +618,19 @@ def _p_holiday_rwd(text: str) -> list[dict[str, Any]]:
     return [{"Date": r.get("日期"), "Name": r.get("名稱"), "Description": r.get("說明")} for r in rows]
 
 
-def _recent_weekday_yyyymmdd(now: datetime) -> str:
+def _recent_weekdays_yyyymmdd(now: datetime, count: int = 5) -> list[str]:
+    """Most recent `count` weekdays, newest first. Date-keyed rwd endpoints return
+    nothing for a holiday, and the holiday calendar is fetched in parallel with
+    them, so callers try each date in turn instead of guessing one."""
     d = now.date()
     if now.hour < TWSE_CLOSE_HOUR + 1:
         d -= timedelta(days=1)
-    while d.weekday() >= 5:
+    out: list[str] = []
+    while len(out) < count:
+        if d.weekday() < 5:
+            out.append(d.strftime("%Y%m%d"))
         d -= timedelta(days=1)
-    return d.strftime("%Y%m%d")
+    return out
 
 
 def _finmind(dataset: str, data_id: str, start: str) -> list[dict[str, Any]]:
@@ -768,7 +774,8 @@ def _official_snapshot(
     watchlist: list[str], history_days: int
 ) -> dict[str, Any]:
     now = _now_taipei()
-    d8 = _recent_weekday_yyyymmdd(now)
+    recent = _recent_weekdays_yyyymmdd(now)
+    d8 = recent[0]
     roc = _roc_slash(now)
 
     jobs: dict[str, list[tuple[str, Callable[[str], list[dict[str, Any]]]]]] = {
@@ -776,18 +783,14 @@ def _official_snapshot(
             (TWSE_QUOTES_URL, _p_quotes_openapi),
             (TWSE_QUOTES_RWD, _p_quotes_rwd_csv),
         ],
-        "twse_indices": [
-            (TWSE_INDEX_URL, _p_indices_openapi),
-            (TWSE_INDEX_RWD.format(yyyymmdd=d8), _p_indices_rwd),
-        ],
+        "twse_indices": [(TWSE_INDEX_URL, _p_indices_openapi)]
+        + [(TWSE_INDEX_RWD.format(yyyymmdd=d), _p_indices_rwd) for d in recent],
         "twse_market_stats": [
             (TWSE_MARKET_STATS_URL, _p_stats_openapi),
             (TWSE_MARKET_STATS_RWD.format(yyyymmdd=d8), _p_stats_rwd),
         ],
-        "twse_valuation": [
-            (TWSE_VALUATION_URL, _p_valuation_openapi),
-            (TWSE_VALUATION_RWD.format(yyyymmdd=d8), _make_p_valuation_rwd(None)),
-        ],
+        "twse_valuation": [(TWSE_VALUATION_URL, _p_valuation_openapi)]
+        + [(TWSE_VALUATION_RWD.format(yyyymmdd=d), _make_p_valuation_rwd(None)) for d in recent],
         "twse_holidays": [
             (TWSE_HOLIDAY_URL, _p_holiday_openapi),
             (TWSE_HOLIDAY_RWD.format(roc=roc), _p_holiday_rwd),

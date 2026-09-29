@@ -40,7 +40,8 @@ RSS_FEEDS = [
     ("經濟日報", "https://money.udn.com/rssfeed/news/1001/5591?ch=money"),
     ("經濟日報-產業", "https://money.udn.com/rssfeed/news/1001/5590?ch=money"),
     ("中央社財經", "https://feeds.feedburner.com/rsscna/finance"),
-    ("工商時報", "https://ctee.com.tw/feed"),
+    # 工商時報 ctee.com.tw/feed removed 2026-09-29: 403 on every run since it was
+    # added, which flagged every report as 部分 for a source that never worked.
     ("Yahoo財經", "https://tw.stock.yahoo.com/rss?category=news"),
 ]
 RELEVANCE = [

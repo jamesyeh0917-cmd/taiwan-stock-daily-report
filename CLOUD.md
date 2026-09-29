@@ -42,7 +42,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 6b. **price-in**：對每個優先題材已發生的主要催化劑，跑
    `python scripts/price_in.py --code <代表股> --event-date <日期>`（見 references/backtest-calibration.md）。
 6c. **題材檔案**：依 [references/theme-dossier.md](references/theme-dossier.md)，對每個 WATCH 以上題材，在「題材檔案」資料庫查既有頁 → 追加當日小節或建新頁。
-6d. **回測校準（僅週一 / 每月 1 日）**：依 references/backtest-calibration.md，從候選股追蹤 DB 匯出 65 日前呼叫 → `python scripts/backtest.py --calls /tmp/calls.json` → 寫報告 §14.5。
+6d. **回測校準（僅週一 / 每月 1 日）**：依 references/backtest-calibration.md，從候選股追蹤 DB 匯出 65 日前呼叫 → `python scripts/backtest.py --calls /tmp/calls.json` → 寫報告 §13.7。
 
 7. **交付**：依 [references/output-delivery.md](references/output-delivery.md)。目標：
 
@@ -69,6 +69,7 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 
 8. 報告標題用步驟 0 的 `report_title`；開頭 callout 標「自動產生‧未複核」；報告 DB 的 `狀態` 屬性用步驟 4e 的 `suggested_report_status`（除非有更強理由才覆寫）；`複核狀態`（排程一律 `待複核`，QA fail 則 `有疑慮`）。
 9. 全程非互動：不要問問題。不確定就依 skill 降級規則處理並在報告中記錄。
+10. **不要修改倉庫的程式或文件，不要 commit／push。** 雲端沙箱沒有 GitHub 推送權限，改了也會隨沙箱銷毀而消失，隔天又重來一次。腳本出錯時：能繞過就在本次執行中繞過（例如手動重跑、改用備援資料），並在報告 §15 與 Discord 摘要各寫一行「腳本問題：<檔名>、<錯誤訊息>」，交給使用者在本機修。
 
 ### 11. 推播 Discord 摘要（每種模式結束時都要做）
 
@@ -98,5 +99,5 @@ Notion 連接器工具不存在時：把完整報告輸出成 Markdown 檔到工
 
 - Python 3（標準庫即可）
 - 網路：FRED、TWSE openapi + www.twse.com.tw、FinMind、TPEx、美國財政部、各國官方新聞稿、WebSearch/WebFetch、Discord webhook
-- Notion 連接器（claude.ai connector）已授權且可存取上述四個資料庫
+- Notion 連接器（claude.ai connector）已授權且可存取上述五個資料庫
 - 環境變數（routine prompt export）：`FRED_API_KEY`、`DISCORD_WEBHOOK_URL`
