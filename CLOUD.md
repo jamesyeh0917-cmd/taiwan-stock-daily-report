@@ -82,6 +82,7 @@ python scripts/notify_discord.py --kind <digest|light|skip> --message "<內容>"
 `digest` / `light` 摘要包含：資料基準日、報告狀態、加權指數與台幣、本期最重要三件事、
 三情境機率、優先題材、可執行觀察清單前 3 條、Notion 報告頁連結。
 `skip` 只需一行說明為何跳過。
+三種模式都一樣：`/tmp/trading_day.json` 的 `maintenance_warning` 不是 null 時，在摘要最後加一行「🔧 維護提醒：<內容>」。
 
 ### 12. 失敗處理
 

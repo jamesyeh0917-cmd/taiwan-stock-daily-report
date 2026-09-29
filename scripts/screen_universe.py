@@ -89,10 +89,12 @@ def _num(v):
 
 
 def _valuation() -> dict[str, dict]:
-    d8 = _recent_weekday()
-    for u in BWIBBU:
+    # The rwd URL is date-keyed and empty on holidays; an empty result here drops
+    # every stock at the PER filter, so try several recent weekdays.
+    urls = [BWIBBU[0]] + [BWIBBU[1].format(d8=d8) for d8 in _recent_weekdays()]
+    for u in urls:
         try:
-            raw = _get(u.format(d8=d8))
+            raw = _get(u)
             data = json.loads(raw)
             if isinstance(data, list):
                 return {str(r["Code"]).strip(): {
@@ -108,44 +110,54 @@ def _valuation() -> dict[str, dict]:
     return {}
 
 
+def _parse_quotes(raw: str) -> list[dict]:
+    if raw.lstrip()[:1] == "[":
+        return [{
+            "code": str(r.get("Code", "")).strip(),
+            "name": r.get("Name"),
+            "close": _num(r.get("ClosingPrice")),
+            "change": _num(r.get("Change")),
+            "turnover": _num(r.get("TradeValue")),
+            "date": r.get("Date"),
+        } for r in json.loads(raw)]
+    rows = list(csv.DictReader(io.StringIO(raw)))
+    return [{
+        "code": str(r.get("證券代號", "")).strip(),
+        "name": r.get("證券名稱"),
+        "close": _num(r.get("收盤價")),
+        "change": _num(r.get("漲跌價差")),
+        "turnover": _num(r.get("成交金額")),
+        "date": r.get("日期"),
+    } for r in rows]
+
+
 def _quotes() -> list[dict]:
+    # The openapi mirror can lag rwd by days, so ask both and keep the newer
+    # trading date (dates are ROC digits like 1150929, comparable as strings).
+    best: list[dict] = []
+    best_date = ""
     for u in QUOTES:
         try:
-            raw = _get(u)
-            if raw.lstrip()[:1] == "[":
-                data = json.loads(raw)
-                out = []
-                for r in data:
-                    out.append({
-                        "code": str(r.get("Code", "")).strip(),
-                        "name": r.get("Name"),
-                        "close": _num(r.get("ClosingPrice")),
-                        "change": _num(r.get("Change")),
-                        "turnover": _num(r.get("TradeValue")),
-                        "date": r.get("Date"),
-                    })
-                return out
-            rows = list(csv.DictReader(io.StringIO(raw)))
-            return [{
-                "code": str(r.get("證券代號", "")).strip(),
-                "name": r.get("證券名稱"),
-                "close": _num(r.get("收盤價")),
-                "change": _num(r.get("漲跌價差")),
-                "turnover": _num(r.get("成交金額")),
-                "date": r.get("日期"),
-            } for r in rows]
+            out = _parse_quotes(_get(u))
         except Exception:
             continue
-    return []
+        d = max((re.sub(r"\D", "", str(q.get("date") or "")) for q in out), default="")
+        if out and d > best_date:
+            best, best_date = out, d
+    return best
 
 
-def _recent_weekday() -> str:
-    d = _now().date()
-    if _now().hour < 15:
+def _recent_weekdays(count: int = 5) -> list[str]:
+    now = _now()
+    d = now.date()
+    if now.hour < 15:
         d -= timedelta(days=1)
-    while d.weekday() >= 5:
+    out: list[str] = []
+    while len(out) < count:
+        if d.weekday() < 5:
+            out.append(d.strftime("%Y%m%d"))
         d -= timedelta(days=1)
-    return d.strftime("%Y%m%d")
+    return out
 
 
 def screen(top: int, core: list[str]) -> dict:
@@ -197,6 +209,8 @@ def screen(top: int, core: list[str]) -> dict:
         "generated_at": _now().isoformat(timespec="seconds"),
         "as_of_date": shortlist[0].get("date") if shortlist else None,
         "universe_scanned": n_total,
+        "valuation_codes": len(val),  # 0 = PER data missing → only core codes survive
+        "errors": [] if val else ["BWIBBU valuation unavailable — every stock failed the PER filter"],
         "passed_coarse_filters": len(passed),
         "shortlist_size": len(shortlist),
         "filters": {

@@ -144,14 +144,22 @@ def _load_static_fallback(year: int) -> set[str]:
 
 def _closed_dates(now: datetime) -> tuple[set[str], bool, str]:
     roc = now.year - 1911
+    year_prefix = f"{now.year:04d}-"
+    # Early-January lookbacks cross into last year; the live feed only covers
+    # the requested year, so last year's dates always come from the fallback.
+    prior_year = _load_static_fallback(now.year - 1)
     for url in HOLIDAY_URLS:
         try:
             data = json.loads(_get(url.format(roc=roc)))
         except Exception:
             continue
-        closed = _parse_closed_rows(data)
+        # TWSE answers a not-yet-published year with the CURRENT year's rows
+        # (queryYear=116 returned 2026 dates on 2026-09-29), and openapi has no
+        # year parameter at all. Counting those as "live" would silently leave
+        # the new year's holidays out, so only the requested year counts.
+        closed = {d for d in _parse_closed_rows(data) if d.startswith(year_prefix)}
         if closed:
-            return closed, True, "live"
+            return closed | prior_year, True, "live"
     # Both live TWSE endpoints failed (they share the same origin, so a
     # cloud-IP block takes both out together). Fall back to the calendar
     # baked into the repo instead of silently assuming every weekday is a
@@ -159,8 +167,18 @@ def _closed_dates(now: datetime) -> tuple[set[str], bool, str]:
     # as a trading day on a day the live fetch happened to fail.
     fallback = _load_static_fallback(now.year)
     if fallback:
-        return fallback, True, "static_fallback"
-    return set(), False, "none"
+        return fallback | prior_year, True, "static_fallback"
+    return prior_year, False, "none"
+
+
+def _maintenance_warning(now: datetime) -> str | None:
+    """From November on, nag until next year's holidays are in the fallback file:
+    once January arrives without them, a failed live fetch means holiday_source=none
+    and every weekday — Lunar New Year included — is treated as a trading day."""
+    if now.month < 11 or _load_static_fallback(now.year + 1):
+        return None
+    return (f"scripts/data/holiday_calendar_fallback.json 尚無 {now.year + 1} 年休市日；"
+            f"證交所公布後請在本機補上並 push（做法見該檔 _comment）。")
 
 
 def _last_completed_session(now: datetime, closed: set[str]) -> str:
@@ -229,6 +247,7 @@ def main() -> int:
         "title_suffix": title_suffix,
         "report_title": report_title,
         "notion_date_property": {"start": report_date, "is_datetime": 0},
+        "maintenance_warning": _maintenance_warning(now),
     }, ensure_ascii=False, indent=2))
     return 0
 

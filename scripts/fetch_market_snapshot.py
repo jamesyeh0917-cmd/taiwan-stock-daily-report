@@ -37,6 +37,9 @@ from statistics import median
 from typing import Any, Callable, Iterable
 from urllib.request import Request, urlopen
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import trading_day  # noqa: E402  (shared holiday-closure rule + static calendar)
+
 try:
     from zoneinfo import ZoneInfo
 except ImportError:  # Python 3.8 fallback
@@ -462,20 +465,24 @@ def _valuation_lookup(rows: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any
     return lookup
 
 
-def _holiday_closed_dates(rows: Iterable[dict[str, Any]]) -> set[str]:
+def _holiday_closed_dates(rows: Iterable[dict[str, Any]], now_tp: datetime) -> set[str]:
+    # Same closure rule as trading_day.py (the old local rule skipped any row
+    # mentioning 交易 and missed 補假, e.g. 2026-10-09/10-26), plus the repo's
+    # static calendar for this and last year so a blocked or not-yet-published
+    # live feed doesn't turn holidays into false "stale" alarms.
     closed: set[str] = set()
     for row in rows:
-        description = str(row.get("Description", ""))
-        name = str(row.get("Name", ""))
         iso = _iso_date(row.get("Date"))
-        if not iso:
-            continue
-        # Entries that explicitly describe a trading day are not closures.
-        if "交易" in description or "交易" in name:
-            continue
-        if "放假" in description or "休市" in description or "調整放假" in description:
+        if iso and trading_day._is_closed_entry(str(row.get("Name", "")), str(row.get("Description", ""))):
             closed.add(iso)
+    for year in (now_tp.year, now_tp.year - 1):
+        closed |= trading_day._load_static_fallback(year)
     return closed
+
+
+def _newest_iso(rows: Iterable[dict[str, Any]], key: str) -> str | None:
+    dates = [d for d in (_iso_date(r.get(key)) for r in rows) if d]
+    return max(dates) if dates else None
 
 
 def _expected_last_trading_day(now_tp: datetime, closed: set[str]) -> str:
@@ -817,8 +824,29 @@ def _official_snapshot(
                 results[name] = []
                 errors.append({"source": name, "error": str(exc)})
 
+    closed = _holiday_closed_dates(results.get("twse_holidays", []), now)
+
+    # _chain takes the first NON-EMPTY answer, but the openapi mirror can lag
+    # the rwd site by days (2026-09-29 evening: openapi STOCK_DAY_ALL/MI_INDEX
+    # still at 09-24, rwd already at 09-29). If the primary is behind the
+    # expected session, re-ask rwd and keep whichever is newer.
+    expected = _expected_last_trading_day(now, closed)
+    rechecks = {
+        "twse_quotes": ([(TWSE_QUOTES_RWD, _p_quotes_rwd_csv)], "Date"),
+        "twse_indices": ([(TWSE_INDEX_RWD.format(yyyymmdd=expected.replace("-", "")), _p_indices_rwd)], "日期"),
+    }
+    for name, (specs, key) in rechecks.items():
+        have = _newest_iso(results.get(name, []), key)
+        if have and have >= expected:
+            continue
+        rows, _ = _chain(specs)
+        got = _newest_iso(rows, key)
+        if got and (not have or got > have):
+            results[name] = rows
+            errors = [e for e in errors if e.get("source") != name]
+            errors.append({"source": name, "note": f"primary served {have}, refetched {got} from rwd"})
+
     indices, index_warnings = _normalize_indices(results.get("twse_indices", []))
-    closed = _holiday_closed_dates(results.get("twse_holidays", []))
 
     history: dict[str, Any] = {}
     signals: dict[str, Any] = {}
