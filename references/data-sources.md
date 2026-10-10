@@ -34,6 +34,8 @@
 - TPEx OpenAPI：<https://www.tpex.org.tw/openapi/>
 - TPEx 上櫃收盤行情：<https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes>
 - 公開資訊觀測站：財報、重大訊息、法說與公司公告，<https://mops.twse.com.tw/mops/web/index>
+  - 當日重大訊息已有腳本（`fetch_material_news.py`），端點與 WAF／時間窗口注意事項見 [material-news.md](material-news.md)。
+- 臺灣期貨交易所（TAIFEX，A 級）：臺指選擇權 Put/Call 比，<https://www.taifex.com.tw/cht/3/pcRatio>；臺股期貨三大法人未平倉，<https://www.taifex.com.tw/cht/3/futContractsDate>。腳本與解析注意事項見 [derivatives-sentiment.md](derivatives-sentiment.md)。
 
 交易所行情常使用民國年月日；轉換西元年時加 1911。OpenAPI 最新行情通常是最近已發布交易日，不得稱為即時資料，也不得把假日的最近交易日寫成今天。行情腳本先用首位 1–9 的四位數代號排除多數 ETF／ETN 等非普通股工具；個股研究仍須再以交易所或公司資料確認證券類型。
 

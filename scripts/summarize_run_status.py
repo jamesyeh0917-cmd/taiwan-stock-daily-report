@@ -27,6 +27,7 @@ Usage:
   python scripts/summarize_run_status.py --mode full|light
     [--market market.json] [--macro macro.json] [--fundamentals fundamentals.json]
     [--news news.json] [--industry-flow industry_flow.json] [--trading-day trading_day.json]
+    [--derivatives derivatives.json] [--material-news material_news.json]
 """
 
 from __future__ import annotations
@@ -141,7 +142,8 @@ def _check_trading_day(data: dict | None) -> list[str]:
 
 def summarize(mode: str, market: dict | None, macro: dict | None, fundamentals: dict | None,
               news: dict | None, industry_flow: dict | None,
-              trading_day: dict | None = None) -> dict[str, Any]:
+              trading_day: dict | None = None, derivatives: dict | None = None,
+              material_news: dict | None = None) -> dict[str, Any]:
     degraded_sources: list[str] = []
     missing_sources: list[str] = []
 
@@ -153,6 +155,12 @@ def summarize(mode: str, market: dict | None, macro: dict | None, fundamentals: 
     degraded_sources += _check_errors_only("fetch_industry_flow", industry_flow)
     degraded_sources += _check_fundamentals(fundamentals)
     degraded_sources += _check_trading_day(trading_day)
+    # TAIFEX / MOPS fetches report status ok|degraded|empty plus string errors. They only
+    # run on a full-mode trading day, where "empty" means a real gap, not a quiet day.
+    _, notes = _check_status_field("fetch_derivatives_sentiment", derivatives)
+    degraded_sources += notes
+    _, notes = _check_status_field("fetch_material_news", material_news)
+    degraded_sources += notes
 
     if mode == "full":
         if market is None:
@@ -188,6 +196,8 @@ def main() -> int:
     parser.add_argument("--news")
     parser.add_argument("--industry-flow")
     parser.add_argument("--trading-day")
+    parser.add_argument("--derivatives")
+    parser.add_argument("--material-news")
     parser.add_argument("--output", default="-")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
@@ -201,6 +211,8 @@ def main() -> int:
         _load(args.news),
         _load(args.industry_flow),
         _load(args.trading_day),
+        _load(args.derivatives),
+        _load(args.material_news),
     )
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output == "-":

@@ -65,6 +65,10 @@
 | `references/industry-flow.md` | 產業資金流方法論、口徑限制、Phase 1/2 範圍 |
 | `scripts/trading_day.py` | full / light / skip 決策 + 唯一的日期／標題計算來源（`report_date`／`report_title`／`notion_date_property`）；假日行事曆 live 兩層失敗時讀 `scripts/data/holiday_calendar_fallback.json` |
 | `scripts/summarize_run_status.py` | 彙總 market/macro/fundamentals/news/industry_flow 的降級狀態 → 建議的 `狀態`（完整/部分/資料不足）與 `工具降級` |
+| `scripts/fetch_derivatives_sentiment.py` | 期交所：臺指選擇權 Put/Call 比 + 臺股期貨外資/投信/自營商未平倉淨部位 |
+| `references/derivatives-sentiment.md` | 衍生性商品籌碼氣氛的方法、口徑限制與解析踩坑紀錄 |
+| `scripts/fetch_material_news.py` | MOPS 當日重大訊息，依時間契約切窗後過濾到觀察名單 |
+| `references/material-news.md` | 重大訊息的端點、WAF、時間窗口與類別標籤說明 |
 | `scripts/price_in.py` | 事件研究：催化劑是否已反映 |
 | `scripts/backtest.py` | 過去呼叫 vs 前瞻報酬的命中率 |
 | `scripts/screen_universe.py` | 全市場粗篩（第一階段）→ 30 檔 shortlist |
@@ -161,6 +165,13 @@ model 都是 `claude-sonnet-5`,環境 `env_01TKmeeSre37E8NmmXh5PWVk`,prompt 內�
 **`fetch_industry_flow.py`**（獨立於上面，樣本更寬但每檔只打 1 個 dataset）→
 - 官方產業分類（FinMind `TaiwanStockInfo`）× 全市場取樣（TWSE `STOCK_DAY_ALL`，依成交值每產業取前 N 檔）× 三大法人 5/20 日淨買超彙總（換算 NT$ 名目金額）。
 - 輸出依產業排名，含 `net_buy_5d_vs_daily_turnover_pct`（強度）、`positive_ratio`、樣本 <2 檔的 `observation_only` 標註。方法論與限制見 `references/industry-flow.md`；Phase 1 餵報告文字，Phase 2（已啟用）同時全量寫入「產業資金流」Notion 資料庫。
+
+**`fetch_derivatives_sentiment.py`**（期交所 TAIFEX，HTML 表格，標準庫 `html.parser` 解析）→
+- 臺指選擇權 Put/Call 比（成交量比 + 未平倉量比，附前一交易日與變動）＋臺股期貨（TXF）自營商/投信/外資的成交與未平倉多空淨額（附前一交易日變動）。
+- 自檢：多方−空方＝淨額、Put/Call 比率＝賣權量÷買權量、頁面日期＝請求日期；頁面另含「期貨小計/合計」列會覆蓋同名身份別，必須依商品名稱選列。不符一律 `available: false`，不猜。方法與口徑限制見 `references/derivatives-sentiment.md`。
+
+**`fetch_material_news.py`**（MOPS 當日重大訊息，POST JSON，需 UA + Referer + Origin 過 WAF）→
+- 單日查詢涵蓋「前一晚 17:30 至當日 24:00」，不在收盤截止；腳本查區間內每個日曆日、去重，只留 `(上一份報告日 15:00, report_date 15:00]`，收盤後公布者只計數。再過濾到 shortlist 代號，附關鍵字類別標籤與公告全文前 500 字。見 `references/material-news.md`。
 
 **WebFetch**（`macro-fetch.md` 對照表）→
 - 台灣：主計總處 CPI/GDP、財政部進出口、經濟部外銷訂單/工業生產、國發會景氣、CIER + S&P PMI、央行利率/貨幣。

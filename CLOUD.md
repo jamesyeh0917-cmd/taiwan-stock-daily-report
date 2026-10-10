@@ -35,8 +35,10 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
 4b. **全市場粗篩**：`python scripts/screen_universe.py --top <config.screen_top> --core <config.watchlist_core> --output /tmp/shortlist.json`
 4c. **個股深度資料**：`python scripts/fetch_fundamentals.py --watchlist <shortlist.json 的 codes 逗號串> --output /tmp/fundamentals.json`（FinMind；有 `FINMIND_TOKEN` 環境變數則自動用，額度較高）。
 4c-2. **產業資金流排行**：`python scripts/fetch_industry_flow.py --per-industry <config.industry_flow_per_industry> --min-turnover <config.industry_flow_min_turnover_twd> --output /tmp/industry_flow.json`（FinMind 官方產業分類 + 全市場成交值取樣 + 三大法人買賣超彙總；見 [references/industry-flow.md](references/industry-flow.md)）。此步驟可容許失敗降級（輸出 `industries: []`），不得中斷全程。
+4c-3. **衍生性商品籌碼氣氛**：`python scripts/fetch_derivatives_sentiment.py --date <步驟 0 的 report_date> --output /tmp/derivatives.json`（期交所：臺指選擇權 Put/Call 比 + 臺股期貨外資／投信／自營商未平倉；見 [references/derivatives-sentiment.md](references/derivatives-sentiment.md)）。可容許失敗降級（`status=empty`），不得中斷全程。`--date` 一律用 `report_date`，不是執行日。
+4c-4. **公司重大訊息**：`python scripts/fetch_material_news.py --date <步驟 0 的 report_date> --since <步驟 0 的 prior_report_date，首次執行沒有就省略> --codes <shortlist.json 的 codes 逗號串> --output /tmp/material_news.json`（MOPS 重大訊息；依時間契約只取 `(上一份報告日 15:00, report_date 15:00]`，收盤後公布的只計數；見 [references/material-news.md](references/material-news.md)）。可容許失敗降級，不得中斷全程。
 4d. **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output /tmp/news.json`（鉅亨網 + 經濟日報 + 中央社）。優先於 WebSearch。
-4e. **彙總降級狀態**：`python scripts/summarize_run_status.py --mode <full|light> --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --news /tmp/news.json --industry-flow /tmp/industry_flow.json --trading-day /tmp/trading_day.json --output /tmp/run_status.json`（light 模式只帶有跑的檔案，`--trading-day` 兩種模式都帶）。輸出的 `suggested_report_status` 當報告 §1「報告狀態」與 Notion `狀態` 屬性的預設值、`tools_degraded`／`degraded_sources` 直接用於「工具降級」段落——不要自己重新翻 4-5 個 JSON 檔判斷，除非有更強理由才覆寫預設值並說明原因。
+4e. **彙總降級狀態**：`python scripts/summarize_run_status.py --mode <full|light> --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --news /tmp/news.json --industry-flow /tmp/industry_flow.json --derivatives /tmp/derivatives.json --material-news /tmp/material_news.json --trading-day /tmp/trading_day.json --output /tmp/run_status.json`（light 模式只帶有跑的檔案，`--trading-day` 兩種模式都帶）。輸出的 `suggested_report_status` 當報告 §1「報告狀態」與 Notion `狀態` 屬性的預設值、`tools_degraded`／`degraded_sources` 直接用於「工具降級」段落——不要自己重新翻 4-5 個 JSON 檔判斷，除非有更強理由才覆寫預設值並說明原因。
 5. **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 補。
 6. **跨日比較**：依 [references/state-memory.md](references/state-memory.md)。雲端每次全新 checkout，`scripts/state/latest.json` 不存在屬正常 → 用步驟 0 已查到的 Notion 前一筆。
 6b. **price-in**：對每個優先題材已發生的主要催化劑，跑
@@ -61,11 +63,13 @@ python scripts/trading_day.py --last-report-date <前一份的資料基準日> -
     ```
     產業名不在查詢結果中 → 批次 `notion-create-pages`（parent 用 `data_source_id`，一次最多 100 筆）新增；已在結果中 → 逐筆 `notion-update-page`（`command: update_properties`）更新，用查到的 `url` 對應的頁面 id。`排名` = 該日 `industries[]` 排序後的 1-based 位置；`報告顯示範圍` 依當日 top5/bottom3 標註（其餘標「未顯示」）；`報告連結` 填本次報告頁 URL。見 [references/output-delivery.md](references/output-delivery.md) 第 4 項、[references/industry-flow.md](references/industry-flow.md)。`industry_flow.json` 的 `industries` 為空時整段跳過，不擋交付。
 
+7a-2. **衍生性商品寫入證據帳本**：`derivatives.json` 的 `put_call.available` 為真時寫一列「台指選擇權 Put/Call 未平倉比」（`實際值`=`oi_ratio_pct`，`前值`=`previous.oi_ratio_pct`，`資料期`=`report_date`，`來源`=<https://www.taifex.com.tw/cht/3/pcRatio>，`證據層級`=A）；`futures_oi.available` 為真時寫一列「外資臺股期貨未平倉淨部位（口）」（`實際值`=`foreign.oi_net`，`前值`=`foreign.oi_net_previous`，`來源`=<https://www.taifex.com.tw/cht/3/futContractsDate>，`證據層級`=A）。鍵為「指標 + 資料期」，同日重跑用 update，比照證據帳本既有慣例；不另建資料庫。
+
 7b. **產出 QA（交付前）**：把報告草稿寫成 `/tmp/draft.md`，跑
    `python scripts/validate_report.py --report /tmp/draft.md --market /tmp/market.json --macro /tmp/macro.json --fundamentals /tmp/fundamentals.json --mode <full|light> --expected-base-date <步驟0 trading_day.py 輸出的 report_date>`。
    `--expected-base-date` 務必帶，尤其輕量模式下沒有 `market.json` 可比對，這是唯一能抓到「頁面日期誤填執行日」的檢查。
    依 [references/qa-and-review.md](references/qa-and-review.md)：`fail` → 仍交付但頁面加 callout、`複核狀態`=有疑慮、Discord 標「⚠️ QA 未通過」；`warn` → warnings 併進 §14；QA JSON 貼進 §15 toggle。
-7c. 把 market/macro/fundamentals/industry_flow 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
+7c. 把 market/macro/fundamentals/industry_flow/derivatives/material_news 的關鍵欄位貼進報告 §15 的「原始快照」toggle（資料快取後備）。
 
 8. 報告標題用步驟 0 的 `report_title`；開頭 callout 標「自動產生‧未複核」；報告 DB 的 `狀態` 屬性用步驟 4e 的 `suggested_report_status`（除非有更強理由才覆寫）；`複核狀態`（排程一律 `待複核`，QA fail 則 `有疑慮`）。
 9. 全程非互動：不要問問題。不確定就依 skill 降級規則處理並在報告中記錄。

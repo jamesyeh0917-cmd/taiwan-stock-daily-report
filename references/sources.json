@@ -28,6 +28,9 @@
     {"name": "TPEx OpenAPI 目錄", "tier": "A", "url": "https://www.tpex.org.tw/openapi/"},
     {"name": "TPEx 上櫃個股收盤行情", "tier": "A", "format": "json", "cadence": "trading-day", "url": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes"},
     {"name": "公開資訊觀測站 MOPS", "tier": "B", "topics": ["財報", "重大訊息", "法說", "月營收"], "url": "https://mops.twse.com.tw/mops/web/index"},
+    {"name": "MOPS 當日重大訊息 t05st02", "tier": "B", "format": "json", "cadence": "trading-day", "method": "POST", "params": "year(民國), month, day", "note": "有 WAF，需 User-Agent + Referer + Origin；單日查詢涵蓋前一晚 17:30 至當日 24:00，不在收盤截止，需自行依時間契約切窗", "url": "https://mops.twse.com.tw/mops/api/t05st02"},
+    {"name": "TAIFEX 臺指選擇權 Put/Call 比", "tier": "A", "format": "html-table", "cadence": "trading-day", "params": "queryStartDate/queryEndDate=YYYY/MM/DD，區間上限 30 日", "note": "回傳 HTML 頁而非 CSV；週選與月選合併計算", "url": "https://www.taifex.com.tw/cht/3/pcRatioExcel"},
+    {"name": "TAIFEX 三大法人區分各期貨契約", "tier": "A", "format": "html-table", "cadence": "trading-day", "params": "queryDate=YYYY/MM/DD, commodityId=TXF", "note": "單日快照；頁面含「期貨小計／合計」列，需依商品名稱選列；金額單位千元", "url": "https://www.taifex.com.tw/cht/3/futContractsDateExcel"},
     {"name": "FinMind API", "tier": "B", "format": "json", "topics": ["個股歷史 PER/PBR", "三大法人買賣超", "融資融券", "月營收", "股利", "個股/指數日 K"], "note": "scripts/fetch_fundamentals.py 使用；免費約 300 req/hr，FINMIND_TOKEN 可提高；資料源為 TWSE/TPEx/MOPS 之整理，非第一手", "url": "https://api.finmindtrade.com/api/v4/data"}
   ],
   "global_macro": [

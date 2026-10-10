@@ -47,6 +47,8 @@ description: 產生以台灣為核心、涵蓋全球總經、政策、重大新�
      讀 `freshness`：若 `stale` 為真或 `status=degraded`，依 research-method 新鮮度規則處理。每檔 watchlist 附 `signals`（5/20/60 日動能、相對大盤強弱、量能比、實現波動）。使用者提供 CSV／JSON／XLSX 時改 `--input <file>`。
    - **全市場粗篩（第一階段）**：`python scripts/screen_universe.py --top <config.screen_top> --core <config.watchlist_core> --output <shortlist.json>` → 取得輪動候選 + 核心清單。
    - **個股基本面與籌碼面（第二階段）**：`python scripts/fetch_fundamentals.py --watchlist <shortlist 的 codes> --output <fundamentals.json>`（FinMind）。近一年 PER／PBR 分位、三大法人買賣超、融資融券、月營收 YoY／MoM、股利。缺值填 N/A。
+   - **衍生性商品籌碼氣氛**：`python scripts/fetch_derivatives_sentiment.py --date <report_date> --output <derivatives.json>`（期交所，A 級）。臺指選擇權 Put/Call 比與外資台指期未平倉淨部位，只作市場驗證；解析與口徑見 [references/derivatives-sentiment.md](references/derivatives-sentiment.md)。
+   - **公司重大訊息**：`python scripts/fetch_material_news.py --date <report_date> --since <prior_report_date> --codes <shortlist 的 codes> --output <material_news.json>`（MOPS，B 級）。依時間契約只取上一份報告日 15:00 到 `report_date` 15:00 之間的公告；見 [references/material-news.md](references/material-news.md)。
    - **總經數據**：`python scripts/fetch_macro_snapshot.py --output <macro.json>`（FRED key 由 `scripts/.env` 或環境變數帶入）。讀 `macro_snapshot.json` 作為美國、殖利率、油價、Euro、匯率的一手來源。
    - **台股／總經新聞**：`python scripts/fetch_news.py --hours <config.news_window_hours> --output <news.json>` → 鉅亨網 API + 經濟日報／中央社 RSS 的當日標題、摘要、tagged 個股、題材／總經話題計數。**優先於 WebSearch**（WebSearch 美國區、常拿舊快取）。標 D 級，引用前開原始文件。
    - **台／中／日總經 + consensus**：依 [references/macro-fetch.md](references/macro-fetch.md) 用 WebFetch 直抓官方新聞稿與經濟日曆，補齊腳本未涵蓋項。
